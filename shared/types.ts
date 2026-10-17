@@ -170,6 +170,28 @@ export interface AdminUser {
   lastActiveAt: string | null
 }
 
+/** One request to join an in-person workshop, as stored and as shown on the admin page. */
+export interface InterestRecord {
+  id: string
+  workshop: string
+  userId: string | null
+  name: string
+  email: string
+  phone: string | null
+  city: string
+  kids: number
+  ages: string | null
+  format: 'school' | 'public' | 'either'
+  message: string | null
+  status: string
+  createdAt: string
+}
+
+export interface AdminInterestResponse {
+  items: InterestRecord[]
+  total: number
+}
+
 export interface AdminUsersResponse {
   users: AdminUser[]
   total: number

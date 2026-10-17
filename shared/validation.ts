@@ -127,3 +127,19 @@ export const testRecordSchema = z.object({
   result: z.record(z.string().max(40), z.unknown()),
   createdAt: z.string(),
 })
+
+/** The in-person workshop interest form (/in-person). `website` is a honeypot and must stay empty. */
+export const interestRequestSchema = z.object({
+  workshop: z.enum(['water-rocket', 'bridge-builder']).default('water-rocket'),
+  name: z.string().trim().min(2, 'Please tell us your name').max(80),
+  email: z.string().trim().toLowerCase().max(120).pipe(z.email('Please enter a valid email')),
+  phone: z.string().trim().max(30).default(''),
+  city: z.string().trim().min(2, 'Please tell us your city or area').max(80),
+  kids: z.number().int().min(1).max(60),
+  ages: z.string().trim().max(60).default(''),
+  format: z.enum(['school', 'public', 'either']).default('either'),
+  message: z.string().trim().max(600).default(''),
+  website: z.string().max(200).default(''),
+})
+
+export type InterestRequestInput = z.input<typeof interestRequestSchema>

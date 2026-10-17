@@ -89,7 +89,27 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="card mt-16 bg-ink text-white">
+      <section className="card mt-16 border-4 border-dashed border-sun bg-sun/15">
+        <div className="grid gap-6 md:grid-cols-[2fr_1fr] md:items-center">
+          <div>
+            <span className="chip mb-3">🏫 Coming soon</span>
+            <h2 className="font-display text-3xl font-bold text-ink">In-person rocket workshops</h2>
+            <p className="mt-2 text-ink">
+              Build a real water rocket from a bottle, pump it up outdoors and launch it, then make it better, just like in the
+              online lab. We are planning sessions for schools, clubs and weekend events. Tell us you are interested and we will
+              email you first when dates open near you.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Link to="/in-person" className="btn-primary">
+              🚀 Register interest
+            </Link>
+            <span className="text-center text-xs font-semibold text-ink-soft">Takes a minute. Not a booking.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="card mt-8 bg-ink text-white">
         <div className="grid gap-6 md:grid-cols-[2fr_1fr] md:items-center">
           <div>
             <h2 className="font-display text-3xl font-bold">For parents and teachers</h2>

@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
-import type { AdminStats, AdminUser, AdminUsersResponse } from '../shared/types'
+import type { AdminInterestResponse, AdminStats, AdminUser, AdminUsersResponse, InterestRecord } from '../shared/types'
 import type { Db } from './db/client'
-import { designs, enrollments, files, launches, users, worksheetProgress } from './db/schema'
+import { designs, enrollments, eventInterest, files, launches, users, worksheetProgress } from './db/schema'
 
 /** Used when ADMIN_EMAILS is not set: the site owner. */
 export const DEFAULT_ADMIN_EMAILS = ['harsha@ascent-i-tech.in']
@@ -233,4 +233,29 @@ export async function adminUsers(db: Db, limit = 1000): Promise<AdminUsersRespon
     }
   })
   return { users: result, total }
+}
+
+export function toInterestRecord(row: typeof eventInterest.$inferSelect): InterestRecord {
+  return {
+    id: row.id,
+    workshop: row.workshop,
+    userId: row.userId,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    city: row.city,
+    kids: row.kids,
+    ages: row.ages,
+    format: (row.format as InterestRecord['format']) ?? 'either',
+    message: row.message,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
+/** In-person workshop interest, newest first. Read-only. */
+export async function adminInterest(db: Db, limit = 1000): Promise<AdminInterestResponse> {
+  const [{ total } = { total: 0 }] = await db.select({ total: sql<number>`count(*)::int` }).from(eventInterest)
+  const rows = await db.select().from(eventInterest).orderBy(sql`${eventInterest.createdAt} desc`).limit(limit)
+  return { items: rows.map(toInterestRecord), total }
 }

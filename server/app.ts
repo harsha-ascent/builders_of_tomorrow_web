@@ -7,6 +7,7 @@ import { designsRoutes } from './routes/designs'
 import { digestRoutes } from './routes/digest'
 import { enrollmentsRoutes } from './routes/enrollments'
 import { filesRoutes } from './routes/files'
+import { interestRoutes } from './routes/interest'
 import { launchesRoutes } from './routes/launches'
 import { meRoutes } from './routes/me'
 import { shareRoutes } from './routes/share'
@@ -49,6 +50,7 @@ app.route('/webhooks', webhooksRoutes)
 app.route('/digest', digestRoutes)
 app.route('/enrollments', enrollmentsRoutes)
 app.route('/admin', adminRoutes)
+app.route('/interest', interestRoutes)
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => {

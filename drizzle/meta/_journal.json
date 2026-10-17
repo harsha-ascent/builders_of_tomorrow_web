@@ -29,6 +29,13 @@
       "when": 1792247508764,
       "tag": "0003_next_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792259972712,
+      "tag": "0004_military_nitro",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import type { AdminStats, AdminUser, AdminUsersResponse } from '../../shared/types'
+import type { AdminInterestResponse, AdminStats, AdminUser, AdminUsersResponse } from '../../shared/types'
 import { useAppAuth } from '../auth/AppAuth'
 import { BarChart } from '../components/charts/BarChart'
 import { Page } from '../components/layout/Page'
@@ -20,17 +20,23 @@ export default function AdminPage() {
   const { enabled, isLoaded, isSignedIn, getToken } = useAppAuth()
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [users, setUsers] = useState<AdminUsersResponse | null>(null)
+  const [interest, setInterest] = useState<AdminInterestResponse | null>(null)
   const [error, setError] = useState<{ status: number; message: string } | null>(null)
 
   useEffect(() => {
     if (!enabled || !isLoaded || !isSignedIn) return
     let alive = true
-    Promise.all([apiFetch<AdminStats>('/api/admin/stats', getToken), apiFetch<AdminUsersResponse>('/api/admin/users', getToken)])
-      .then(([s, u]) => {
+    Promise.all([
+      apiFetch<AdminStats>('/api/admin/stats', getToken),
+      apiFetch<AdminUsersResponse>('/api/admin/users', getToken),
+      apiFetch<AdminInterestResponse>('/api/admin/interest', getToken),
+    ])
+      .then(([s, u, i]) => {
         if (!alive) return
         setError(null)
         setStats(s)
         setUsers(u)
+        setInterest(i)
       })
       .catch((e: unknown) => {
         if (!alive) return
@@ -78,11 +84,12 @@ export default function AdminPage() {
             error.message
           )}
         </Callout>
-      ) : !stats || !users ? (
+      ) : !stats || !users || !interest ? (
         <p className="mt-6 text-ink-soft">Loading the numbers…</p>
       ) : (
         <>
           <Overview stats={stats} />
+          <InterestTable data={interest} />
           <UsersTable data={users} />
         </>
       )}
@@ -300,6 +307,106 @@ function UsersTable({ data }: { data: AdminUsersResponse }) {
                 <td className="px-3 py-2 whitespace-nowrap" title={u.lastDigestAt ? `Last summary ${fmtDate(u.lastDigestAt)}` : 'No summary sent yet'}>
                   {u.digestOptIn ? '✅ weekly' : '🔕 off'}
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+const FORMAT_LABEL: Record<string, string> = { school: '🏫 School or club', public: '🌳 Weekend event', either: '👍 Either' }
+
+/** People who asked to join an in-person workshop (the /in-person form). */
+function InterestTable({ data }: { data: AdminInterestResponse }) {
+  const [q, setQ] = useState('')
+  const weekAgo = Date.now() - 7 * 86_400_000
+  const thisWeek = data.items.filter((i) => new Date(i.createdAt).getTime() >= weekAgo).length
+  const kidsTotal = data.items.reduce((n, i) => n + i.kids, 0)
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return needle
+      ? data.items.filter((i) => [i.name, i.email, i.city, i.phone ?? '', i.message ?? ''].some((v) => v.toLowerCase().includes(needle)))
+      : data.items
+  }, [data.items, q])
+
+  const exportCsv = () => {
+    const head = ['date', 'name', 'email', 'phone', 'city', 'children', 'ages', 'format', 'message', 'workshop', 'status', 'signed_in_user']
+    const esc = (v: string | number | null) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const lines = rows.map((i) => [i.createdAt, i.name, i.email, i.phone, i.city, i.kids, i.ages, i.format, i.message, i.workshop, i.status, i.userId].map(esc).join(','))
+    const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `in-person-interest-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
+  return (
+    <section className="mt-8">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-bold text-ink">🏫 In-person workshop interest</h2>
+          <p className="text-sm text-ink-soft">
+            From the{' '}
+            <Link to="/in-person" className="font-bold underline">
+              /in-person
+            </Link>{' '}
+            form. Newest first; emails are mailto links.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input className="input !w-64 !py-2" placeholder="Search name, email, city" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search interest" />
+          <button type="button" className="btn-ghost !px-4 !py-2 text-sm" onClick={exportCsv} disabled={rows.length === 0}>
+            ⬇️ CSV
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <StatTile emoji="✉️" label="Requests" value={String(data.total)} tone="sun" />
+        <StatTile emoji="🆕" label="This week" value={String(thisWeek)} tone="grass" />
+        <StatTile emoji="🧒" label="Children mentioned" value={String(kidsTotal)} tone="sky" />
+      </div>
+      <div className="card mt-3 overflow-x-auto !p-0">
+        <table className="w-full min-w-[960px] text-sm">
+          <thead className="bg-ink/5 text-left text-xs font-extrabold uppercase tracking-wide text-ink-soft">
+            <tr>
+              <th className="px-4 py-2">When</th>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Contact</th>
+              <th className="px-3 py-2">City</th>
+              <th className="px-3 py-2 text-right">Children</th>
+              <th className="px-3 py-2">Ages</th>
+              <th className="px-3 py-2">Format</th>
+              <th className="px-3 py-2">Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-4 py-6 text-center text-ink-soft">
+                  {data.total === 0 ? 'Nobody has registered interest yet.' : 'No requests match.'}
+                </td>
+              </tr>
+            )}
+            {rows.map((i) => (
+              <tr key={i.id} className="border-t border-ink/5 align-top">
+                <td className="px-4 py-2 whitespace-nowrap" title={new Date(i.createdAt).toLocaleString()}>
+                  {fmtDate(i.createdAt)}
+                </td>
+                <td className="px-3 py-2 font-bold text-ink">{i.name}</td>
+                <td className="px-3 py-2">
+                  <a href={`mailto:${i.email}`} className="font-semibold text-ink underline">
+                    {i.email}
+                  </a>
+                  {i.phone && <div className="text-xs text-ink-soft">{i.phone}</div>}
+                </td>
+                <td className="px-3 py-2">{i.city}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{i.kids}</td>
+                <td className="px-3 py-2">{i.ages || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{FORMAT_LABEL[i.format] ?? i.format}</td>
+                <td className="max-w-xs px-3 py-2 text-ink-soft">{i.message || '—'}</td>
               </tr>
             ))}
           </tbody>

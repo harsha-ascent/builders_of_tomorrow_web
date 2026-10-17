@@ -152,7 +152,7 @@ Cloudflare will.
 ## 7. Checklist (status as of 17 Oct 2026)
 
 - [x] GitHub: `main` pushed (push access via a collaborator account on this Mac)
-- [x] Neon: project, pooled `DATABASE_URL`, tables created (`npm run db:migrate`, 2 migrations)
+- [x] Neon: project, pooled `DATABASE_URL`, tables created (`npm run db:migrate`, 5 migrations; the latest adds `event_interest`)
 - [x] Clerk: **production** instance on `ascent-i-tech.in` (email code only; password, phone, Apple and Google
   off), `pk_live`/`sk_live` on the Pages project; DNS verified, certificates issued by Clerk
   (webhook not configured; the app upserts users lazily). Accounts created on the old development instance
@@ -165,7 +165,8 @@ Cloudflare will.
 - [x] Clerk production instance + custom domain
 - [x] DMARC: `_dmarc` TXT `v=DMARC1; p=none;` on the root domain (monitor-only policy; tighten to
   `p=quarantine` later once Google Workspace, Resend and Clerk mail all pass).
-- [x] Privacy and terms pages (`/privacy`, `/terms`), admin page (`/admin`, owner only) — 17 Oct 2026.
+- [x] Privacy and terms pages (`/privacy`, `/terms`), admin page (`/admin`, owner only), in-person interest form
+  (`/in-person`) — 17 Oct 2026.
 
 ### DNS records added for this project (Squarespace Domains → ascent-i-tech.in → DNS → Custom records)
 
@@ -208,6 +209,18 @@ else gets `403`, and the "Admin" link in the header only appears when `/api/me` 
 second admin, append their email to `ADMIN_EMAILS` and redeploy. Queries are read-only; `server/admin.test.ts`
 covers the allow-list and `server/admin.db.test.ts` is a read-only smoke test that runs only when `DATABASE_URL`
 is set.
+
+### In-person workshop interest form
+
+<https://builders.ascent-i-tech.in/in-person> (`src/pages/InPersonPage.tsx`, linked from the home page banner and the
+footer) lets parents, teachers and club leaders say they want a physical water-rocket workshop: name, email, optional
+phone, city, number of children, their ages, preferred format (school/club, weekend event, either) and a message. No
+account is needed. `POST /api/interest` (`server/routes/interest.ts`) validates with `interestRequestSchema`
+(`shared/validation.ts`), drops submissions whose hidden honeypot field is filled, allows at most 3 per email per day,
+records the Clerk user id when the visitor happens to be signed in, and stores the row in the `event_interest`
+table (migration `drizzle/0004_*.sql`). Rows have a `status` column (`new` by default) for your own bookkeeping; the
+site never changes it. The admin page lists every request newest first with search and CSV export
+(`GET /api/admin/interest`, owner only). Nothing is emailed on submission; check `/admin` or export the CSV.
 
 ### Workshops are opt-in
 

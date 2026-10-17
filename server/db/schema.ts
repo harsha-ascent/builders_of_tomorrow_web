@@ -89,3 +89,27 @@ export const files = pgTable(
   },
   (t) => [index('files_user_idx').on(t.userId)],
 )
+
+/** People who asked to join an in-person (physical) workshop. Filled in from /in-person, read on /admin. */
+export const eventInterest = pgTable(
+  'event_interest',
+  {
+    id: text('id').primaryKey(),
+    workshop: text('workshop').notNull().default('water-rocket'),
+    /** Set when the person was signed in while filling in the form. */
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    phone: text('phone'),
+    city: text('city').notNull(),
+    kids: integer('kids').notNull().default(1),
+    ages: text('ages'),
+    /** school | public | either */
+    format: text('format').notNull().default('either'),
+    message: text('message'),
+    /** new | contacted | booked | closed (admin bookkeeping; only "new" is written by the site) */
+    status: text('status').notNull().default('new'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('event_interest_created_idx').on(t.createdAt), index('event_interest_email_idx').on(t.email)],
+)

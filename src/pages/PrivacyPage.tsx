@@ -25,8 +25,13 @@ export default function PrivacyPage() {
 
       <Section title="What we collect">
         <p>
-          <strong>Nothing, until you sign in.</strong> You can play every workshop as a guest. In guest mode your designs and
-          worksheet answers are saved only in your own browser and never leave your device.
+          <strong>Nothing, until you sign in or fill in a form.</strong> You can play every workshop as a guest. In guest mode your
+          designs and worksheet answers are saved only in your own browser and never leave your device.
+        </p>
+        <p>
+          If you <strong>register interest in an in-person workshop</strong>, we keep what you type on that form: your name, email,
+          phone number if you give one, city or area, how many children and their ages, and your message. We use it only to tell
+          you about that workshop, and we delete it when you ask.
         </p>
         <p>When you create an account we keep:</p>
         <ul className="mt-2 list-disc space-y-1 pl-6">
