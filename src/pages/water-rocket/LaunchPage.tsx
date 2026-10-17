@@ -440,7 +440,7 @@ function Hud({ hudRef, playing, padPressurePsi }: { hudRef: React.RefObject<Traj
   const psi = playing && s ? paToPsi(s.pressureKPa * 1000) : padPressurePsi
   const water = playing && s ? s.water : null
   return (
-    <div className="pointer-events-none absolute left-3 top-3 grid grid-cols-2 gap-2 text-white">
+    <div className="pointer-events-none absolute left-3 top-3 grid grid-cols-1 gap-1.5 text-white sm:grid-cols-2 sm:gap-2">
       <HudTile label="Altitude" value={`${alt.toFixed(1)} m`} />
       <HudTile label="Speed" value={`${spd.toFixed(0)} m/s`} />
       <HudTile label="Time" value={`${t.toFixed(2)} s`} />
@@ -453,7 +453,7 @@ function Hud({ hudRef, playing, padPressurePsi }: { hudRef: React.RefObject<Traj
 
 function HudTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-ink/60 px-3 py-1.5 backdrop-blur">
+    <div className="w-28 rounded-xl bg-ink/60 px-2.5 py-1 backdrop-blur sm:w-auto sm:px-3 sm:py-1.5">
       <div className="text-[10px] font-extrabold uppercase tracking-wide text-white/70">{label}</div>
       <div className="font-display text-lg font-bold tabular-nums leading-tight">{value}</div>
     </div>

@@ -14,7 +14,7 @@ export function SiteHeader() {
         <Link to="/" className="flex items-center gap-2">
           <img src="/favicon.svg" alt="" className="h-10 w-10 animate-float" />
           <div className="leading-tight">
-            <div className="font-display text-xl font-bold text-ink">Builders of Tomorrow</div>
+            <div className="whitespace-nowrap font-display text-lg font-bold text-ink sm:text-xl">Builders of Tomorrow</div>
             <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-soft">by Ascent I-Tech</div>
           </div>
         </Link>
