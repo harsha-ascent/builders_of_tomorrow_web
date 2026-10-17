@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_DESIGN } from './presets'
-import { pressureZone, sampleAt, simulateLaunch, sweep } from './rocket'
+import { pressureZone, sampleAt, simulateLaunch, sweep, terminalVelocity } from './rocket'
+import { normalizeDesign } from './presets'
 
 const base = { ...DEFAULT_DESIGN, launchAngleDeg: 90 }
 
@@ -87,6 +88,57 @@ describe('simulateLaunch', () => {
     const open = simulateLaunch({ ...base, nozzleDiameterMm: 22 })
     const narrow = simulateLaunch({ ...base, nozzleDiameterMm: 9 })
     expect(narrow.thrustTimeS).toBeGreaterThan(open.thrustTimeS)
+  })
+})
+
+describe('parachute, stages and wind', () => {
+  it('a parachute makes the landing soft and the flight long, at a small height cost', () => {
+    const plain = simulateLaunch(base)
+    const chute = simulateLaunch({ ...base, recovery: 'parachute', parachuteDiameterM: 0.6 })
+    expect(plain.safeLanding).toBe(false)
+    expect(plain.landingSpeedMs).toBeGreaterThan(15)
+    expect(chute.safeLanding).toBe(true)
+    expect(chute.landingSpeedMs).toBeLessThan(7)
+    expect(chute.flightTimeS).toBeGreaterThan(plain.flightTimeS * 1.5)
+    expect(chute.maxHeightM).toBeLessThan(plain.maxHeightM)
+    expect(chute.maxHeightM).toBeGreaterThan(plain.maxHeightM * 0.8)
+    expect(chute.parachuteDeployedAtS).not.toBeNull()
+    expect(chute.events.map((e) => e.type)).toEqual(['liftoff', 'burnout', 'apogee', 'parachute', 'landed'])
+    // the formula and the simulator should agree on the descent speed within ~15 %
+    expect(Math.abs(chute.landingSpeedMs - terminalVelocity({ ...base, recovery: 'parachute', parachuteDiameterM: 0.6 }))).toBeLessThan(1)
+  })
+
+  it('a bigger canopy lands slower', () => {
+    const rows = sweep({ ...base, recovery: 'parachute' }, 'parachuteDiameterM', [0.3, 0.6, 0.9])
+    expect(rows[0].landingSpeedMs).toBeGreaterThan(rows[1].landingSpeedMs)
+    expect(rows[1].landingSpeedMs).toBeGreaterThan(rows[2].landingSpeedMs)
+  })
+
+  it('a booster stage lifts the same top stage higher and separates once', () => {
+    const top = { ...base, bottleVolumeL: 1, dryMassG: 90, waterFraction: 0.33, pressurePsi: 50 }
+    const single = simulateLaunch(top)
+    const twoStage = simulateLaunch({ ...top, boosters: [{ bottleVolumeL: 2, waterFraction: 0.35, nozzleDiameterMm: 22, dryMassG: 100 }] })
+    expect(twoStage.stageCount).toBe(2)
+    expect(twoStage.stageSeparationsS).toHaveLength(1)
+    expect(twoStage.maxHeightM).toBeGreaterThan(single.maxHeightM * 1.25)
+    expect(twoStage.events.filter((e) => e.type === 'stage-separation')).toHaveLength(1)
+    const sepIdx = twoStage.samples.findIndex((s) => s.attached === 1)
+    expect(sepIdx).toBeGreaterThan(0)
+    expect(twoStage.samples[sepIdx - 1].attached).toBe(2)
+  })
+
+  it('wind drifts a parachuting rocket downrange', () => {
+    const calm = simulateLaunch({ ...base, recovery: 'parachute', windMs: 0 })
+    const breezy = simulateLaunch({ ...base, recovery: 'parachute', windMs: 3 })
+    expect(breezy.rangeM).toBeGreaterThan(calm.rangeM + 10)
+  })
+
+  it('normalizeDesign fills in fields older saves do not have', () => {
+    const d = normalizeDesign({ id: 'x', name: 'Old', pressurePsi: 35 } as never)
+    expect(d.boosters).toEqual([])
+    expect(d.recovery).toBe('none')
+    expect(d.windMs).toBe(0)
+    expect(d.pressurePsi).toBe(35)
   })
 })
 

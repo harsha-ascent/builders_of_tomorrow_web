@@ -134,13 +134,21 @@ export default function LaunchPage() {
   async function saveToLog() {
     if (!result) return
     setSaveState('saving')
-    const { samples: _samples, ...summary } = result
+    const { samples: _samples, events: _events, ...summary } = result
     void _samples
+    void _events
     const record: LaunchRecord = {
       id: newDesignId(),
       designId: design.id,
       designName: design.name,
-      settings: { waterFraction: design.waterFraction, pressurePsi: design.pressurePsi, launchAngleDeg: design.launchAngleDeg },
+      settings: {
+        waterFraction: design.waterFraction,
+        pressurePsi: design.pressurePsi,
+        launchAngleDeg: design.launchAngleDeg,
+        windMs: design.windMs,
+        stages: design.boosters.length + 1,
+        recovery: design.recovery,
+      },
       result: summary,
       createdAt: new Date().toISOString(),
     }
@@ -170,7 +178,7 @@ export default function LaunchPage() {
               onTick={onTick}
               resetKey={resetKey}
             />
-            <Hud hudRef={hudRef} playing={playing} padPressurePsi={paToPsi(padPressureKPa * 1000)} />
+            <Hud hudRef={hudRef} playing={playing} padPressurePsi={paToPsi(padPressureKPa * 1000)} hasBoosters={design.boosters.length > 0} />
             <div className="absolute right-3 top-3 flex flex-col gap-2">
               <ToggleGroup
                 label="Camera"
@@ -265,6 +273,7 @@ export default function LaunchPage() {
                 </div>
               </div>
               {result.liftedOff ? (
+                <>
                 <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
                   <StatTile emoji="⬆️" label="Max height" value={fmt.m(result.maxHeightM)} tone="sky" />
                   <StatTile emoji="➡️" label="Distance" value={fmt.m(result.rangeM)} tone="grass" />
@@ -273,7 +282,20 @@ export default function LaunchPage() {
                   <StatTile emoji="🔥" label="Thrust lasted" value={`${(result.thrustTimeS * 1000).toFixed(0)} ms`} tone="grape" />
                   <StatTile emoji="🏔️" label="Apogee at" value={fmt.s(result.apogeeTimeS)} />
                   <StatTile emoji="🎢" label="Max g-force" value={`${result.maxGs} g`} />
+                  <StatTile emoji={result.safeLanding ? '✅' : '💥'} label="Landing" value={fmt.ms(result.landingSpeedMs)} sub={result.safeLanding ? 'soft landing' : 'hard landing'} tone={result.safeLanding ? 'grass' : 'rocket'} />
+                  <StatTile emoji="🪂" label="Coming down" value={fmt.s(result.descentTimeS)} sub={result.parachuteDeployedAtS != null ? `chute at ${result.parachuteDeployedAtS} s` : 'free fall'} tone="sun" />
+                  {result.stageSeparationsS.map((ts, i) => (
+                    <StatTile key={i} emoji="🔗" label={`Stage ${i + 1} dropped`} value={fmt.s(ts, 2)} tone="grape" />
+                  ))}
                 </div>
+                {!result.safeLanding && (
+                  <Callout emoji="🪂" tone="sun" className="mt-4" title="Hard landing!">
+                    {design.recovery === 'parachute'
+                      ? 'The canopy was too small for this rocket. Try a bigger one in Build → Coming back down.'
+                      : `It hit the ground at ${fmt.ms(result.landingSpeedMs)}. Add a parachute in Build → Coming back down to bring it home gently.`}
+                  </Callout>
+                )}
+                </>
               ) : (
                 <Callout emoji="💡" tone="sun" className="mt-4" title="Engineer’s tip">
                   The push from the nozzle was weaker than the rocket’s weight. Try less water, more pressure, a wider nozzle or a lighter rocket.
@@ -432,7 +454,7 @@ export default function LaunchPage() {
   )
 }
 
-function Hud({ hudRef, playing, padPressurePsi }: { hudRef: React.RefObject<TrajectorySample | null>; playing: boolean; padPressurePsi: number }) {
+function Hud({ hudRef, playing, padPressurePsi, hasBoosters }: { hudRef: React.RefObject<TrajectorySample | null>; playing: boolean; padPressurePsi: number; hasBoosters: boolean }) {
   const [s, setS] = useState<TrajectorySample | null>(null)
   useEffect(() => {
     const id = window.setInterval(() => setS(hudRef.current ? { ...hudRef.current } : null), 80)
@@ -450,7 +472,24 @@ function Hud({ hudRef, playing, padPressurePsi }: { hudRef: React.RefObject<Traj
       <HudTile label="Time" value={`${t.toFixed(2)} s`} />
       <HudTile label="Pressure" value={`${Math.round(psi)} psi`} />
       {water != null && <HudTile label="Water left" value={fmt.pct(water)} />}
-      {playing && s && <HudTile label="Phase" value={s.phase === 'thrust' ? '💦 Thrust' : s.phase === 'air' ? '💨 Air burst' : s.phase === 'coast' ? '🪂 Coasting' : s.phase === 'landed' ? '🏁 Landed' : '🛑 Ready'} />}
+      {playing && s && (
+        <HudTile
+          label="Phase"
+          value={
+            s.phase === 'thrust'
+              ? `💦 Thrust${s.attached > 1 ? ` · stage ${s.attached === 3 ? 1 : s.attached === 2 ? (hasBoosters ? 2 : 1) : 'top'}` : ''}`
+              : s.phase === 'air'
+                ? '💨 Air burst'
+                : s.phase === 'coast'
+                  ? '🌠 Coasting'
+                  : s.phase === 'parachute'
+                    ? '🪂 Parachute'
+                    : s.phase === 'landed'
+                      ? '🏁 Landed'
+                      : '🛑 Ready'
+          }
+        />
+      )}
     </div>
   )
 }

@@ -17,6 +17,15 @@ const LaunchPage = lazy(() => import('./pages/water-rocket/LaunchPage'))
 const WorksheetsPage = lazy(() => import('./pages/water-rocket/WorksheetsPage'))
 const WorksheetPage = lazy(() => import('./pages/water-rocket/WorksheetPage'))
 const HangarPage = lazy(() => import('./pages/water-rocket/HangarPage'))
+const BridgeLayout = lazy(() => import('./pages/bridge-builder/BridgeLayout'))
+const BridgeLearnPage = lazy(() => import('./pages/bridge-builder/BridgeLearnPage'))
+const BridgeDesignCyclePage = lazy(() => import('./pages/bridge-builder/BridgeDesignCyclePage'))
+const BridgeBuildPage = lazy(() => import('./pages/bridge-builder/BridgeBuildPage'))
+const BridgeTestPage = lazy(() => import('./pages/bridge-builder/BridgeTestPage'))
+const BridgeWorksheetsPage = lazy(() => import('./pages/bridge-builder/BridgeWorksheetsPage'))
+const BridgeWorksheetPage = lazy(() => import('./pages/bridge-builder/BridgeWorksheetPage'))
+const BridgeHangarPage = lazy(() => import('./pages/bridge-builder/BridgeHangarPage'))
+const BridgeMathPage = lazy(() => import('./pages/bridge-builder/BridgeMathPage'))
 
 function Loading() {
   return (
@@ -48,6 +57,17 @@ export default function App() {
               <Route path="worksheets" element={<WorksheetsPage />} />
               <Route path="worksheets/:worksheetId" element={<WorksheetPage />} />
               <Route path="hangar" element={<HangarPage />} />
+            </Route>
+            <Route path="/workshops/bridge-builder" element={<BridgeLayout />}>
+              <Route index element={<Navigate to="learn" replace />} />
+              <Route path="learn" element={<BridgeLearnPage />} />
+              <Route path="design-cycle" element={<BridgeDesignCyclePage />} />
+              <Route path="build" element={<BridgeBuildPage />} />
+              <Route path="test" element={<BridgeTestPage />} />
+              <Route path="worksheets" element={<BridgeWorksheetsPage />} />
+              <Route path="worksheets/:worksheetId" element={<BridgeWorksheetPage />} />
+              <Route path="hangar" element={<BridgeHangarPage />} />
+              <Route path="math" element={<BridgeMathPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

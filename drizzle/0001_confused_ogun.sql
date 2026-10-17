@@ -1,0 +1,1 @@
+ALTER TABLE "launches" ADD COLUMN "workshop" text DEFAULT 'water-rocket' NOT NULL;

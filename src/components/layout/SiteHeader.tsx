@@ -23,7 +23,10 @@ export function SiteHeader() {
             Home
           </NavLink>
           <NavLink to="/workshops/water-rocket" className={navClass}>
-            Water Rocket Lab
+            🚀 Rockets
+          </NavLink>
+          <NavLink to="/workshops/bridge-builder" className={navClass}>
+            🌉 Bridges
           </NavLink>
           <NavLink to="/me" className={navClass}>
             My Work
@@ -53,7 +56,10 @@ export function SiteHeader() {
           Home
         </NavLink>
         <NavLink to="/workshops/water-rocket" className={navClass}>
-          Rocket Lab
+          🚀 Rockets
+        </NavLink>
+        <NavLink to="/workshops/bridge-builder" className={navClass}>
+          🌉 Bridges
         </NavLink>
         <NavLink to="/me" className={navClass}>
           My Work

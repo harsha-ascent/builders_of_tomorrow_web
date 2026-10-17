@@ -8,7 +8,7 @@ import { SectionTitle } from '../../components/ui/SectionTitle'
 import { StatTile } from '../../components/ui/StatTile'
 import { runLaunch } from '../../lib/runSim'
 import { AssumptionsPanel } from '../../components/AssumptionsPanel'
-import { NOZZLE_DISCHARGE, PHYS, SAFETY, bottleSpec, dragCoefficient, psiToPa } from '../../sim/rocket'
+import { CHUTE, NOZZLE_DISCHARGE, PHYS, SAFETY, bottleSpec, dragCoefficient, parachuteAreaM2, parachuteMassKg, psiToPa, stageList, terminalVelocity } from '../../sim/rocket'
 import { useDesignStore } from '../../store/designStore'
 
 const R = String.raw
@@ -260,8 +260,69 @@ export default function MathPage() {
         />
       </MathSection>
 
-      {/* 7. Numerical integration */}
-      <MathSection emoji="💻" title="7. How the simulator actually works" lead="There is no single formula for the whole flight, so the computer takes thousands of tiny steps.">
+      {/* 7. Terminal velocity */}
+      <MathSection emoji="🪂" title="7. Coming down: terminal velocity" lead="A falling rocket speeds up until drag equals weight. Then it stops accelerating.">
+        <TwoCol
+          left={
+            <>
+              <p className="prose-kid">Set the drag force equal to the weight and solve for the speed:</p>
+              <Formula block tex={R`\tfrac12\,\rho_{\text{air}}\,C_d A\,v_t^2 = m\,g \quad\Longrightarrow\quad v_t = \sqrt{\frac{2\,m\,g}{\rho_{\text{air}}\,C_d A}}`} />
+              <p className="prose-kid">
+                With a parachute the drag area <Formula tex="C_d A" /> is the rocket’s plus the canopy’s (<Formula tex={R`C_d \approx 0.75`} /> for a
+                flat plastic circle). Four times the canopy area halves the landing speed — a square root again. The simulator opens the canopy{' '}
+                {CHUTE.deployDelayS} s after apogee and inflates it over {CHUTE.inflateS} s.
+              </p>
+            </>
+          }
+          right={
+            <LiveBox title="In your rocket">
+              <Row k="Empty top stage" v={`${fmtN(m.mDry * 1000, 0)} g`} />
+              <Row k="Without a parachute" v={`${fmtN(m.vtPlain, 1)} m/s`} />
+              {design.recovery === 'parachute' ? (
+                <>
+                  <Row k={`Canopy ${Math.round(design.parachuteDiameterM * 100)} cm → area`} v={`${fmtN(m.chuteArea, 3)} m²`} />
+                  <Row k="Canopy mass" v={`${fmtN(m.chuteMass * 1000, 0)} g`} />
+                  <Row k="With the parachute" v={`${fmtN(m.vtChute, 1)} m/s`} />
+                  <Row k="Simulator landing speed" v={`${fmtN(m.sim.landingSpeedMs, 1)} m/s`} />
+                </>
+              ) : (
+                <p className="mt-2 text-sm text-ink-soft">Add a parachute in Build → Coming back down to see how a canopy changes this.</p>
+              )}
+            </LiveBox>
+          }
+        />
+      </MathSection>
+
+      {/* 8. Staging */}
+      <MathSection emoji="🚀🚀" title="8. Why dropping a stage helps" lead="Impulse is force × time. Dead weight makes every newton-second count for less.">
+        <TwoCol
+          left={
+            <>
+              <Formula block tex={R`J = \int F\,dt \qquad \Delta v \approx \frac{J}{m}`} />
+              <p className="prose-kid">
+                Each stage delivers an impulse <Formula tex="J" />. The speed it adds is roughly that impulse divided by the mass it has to
+                push. Once a booster is empty it is pure dead weight, so letting it go means the top stage’s impulse pushes a smaller{' '}
+                <Formula tex="m" /> and gives a bigger <Formula tex={R`\Delta v`} />. It also helps that a fresh stage starts at full pressure at
+                altitude, already moving fast.
+              </p>
+            </>
+          }
+          right={
+            <LiveBox title="In your rocket">
+              <Row k="Stages" v={`${m.stages.length}`} />
+              {m.stages.map((st, i) => (
+                <Row key={i} k={`Stage ${i + 1} ${i === m.stages.length - 1 ? '(top)' : '(booster)'}`} v={`${st.bottleVolumeL} L · ${Math.round(st.waterFraction * 100)}% · ${fmtN(st.dryMassG, 0)} g`} />
+              ))}
+              <Row k="Top stage alone would reach" v={`${fmtN(m.topAlone.maxHeightM, 1)} m`} />
+              <Row k="Whole stack reaches" v={`${fmtN(m.sim.maxHeightM, 1)} m`} />
+              {m.stages.length > 1 && <Row k="Separations at" v={m.sim.stageSeparationsS.map((t) => `${fmtN(t, 2)} s`).join(', ')} />}
+            </LiveBox>
+          }
+        />
+      </MathSection>
+
+      {/* 9. Numerical integration */}
+      <MathSection emoji="💻" title="9. How the simulator actually works" lead="There is no single formula for the whole flight, so the computer takes thousands of tiny steps.">
         <TwoCol
           left={
             <>
@@ -289,7 +350,7 @@ export default function MathPage() {
         />
       </MathSection>
 
-      <MathSection emoji="🔍" title="8. What the simulator assumes (and how real rockets differ)" lead="A model is only as honest as its list of assumptions. Here is ours.">
+      <MathSection emoji="🔍" title="10. What the simulator assumes (and how real rockets differ)" lead="A model is only as honest as its list of assumptions. Here is ours.">
         <div className="card">
           <p className="prose-kid">
             Real launches usually come out within about <strong>±25 %</strong> of these numbers. Pressures are real gauge pressures: most school
@@ -310,6 +371,7 @@ export default function MathPage() {
           <li>Halving the nozzle area halves the thrust. Why does the rocket still fly almost as high? (Think about how long the push lasts.)</li>
           <li>Why does more water make the pressure collapse faster? Use the adiabatic formula.</li>
           <li>Your “no air” height was {fmtN(m.Hideal, 0)} m but the simulator says {fmtN(m.sim.maxHeightM, 0)} m. Which equation explains the difference?</li>
+          <li>A parachute twice as wide has four times the area. How much slower does the rocket land? (Section 7.)</li>
         </ol>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link to="../worksheets/rocket-math" className="btn-sun">
@@ -360,12 +422,18 @@ function useRocketMath(design: RocketDesign) {
     const W = Math.max((p0 * Va0 - pEmpty * V) / (gamma - 1), 0)
     const Ep = mDry * g * sim.maxHeightM
     const eta = W > 0 ? Ep / W : 0
+    const vtPlain = terminalVelocity({ ...design, recovery: 'none' })
+    const vtChute = terminalVelocity({ ...design, recovery: 'parachute' })
+    const chuteArea = parachuteAreaM2(design.parachuteDiameterM)
+    const chuteMass = parachuteMassKg({ recovery: 'parachute', parachuteDiameterM: design.parachuteDiameterM })
+    const stages = stageList(design)
+    const topAlone = design.boosters.length > 0 ? runLaunch({ ...design, boosters: [] }) : sim
     const pressureCurve = Array.from({ length: 21 }, (_, i) => {
       const left = 1 - i / 20
       const Va = V - Vw * left
       return { left, pKPa: Math.max(p0 * (Va0 / Va) ** gamma - pAtm, 0) / 1000 }
     })
-    return { V, Vw, Va0, pGauge, p0, AnGeo, An, Af, Cd, mDry, mWater, m0, theta, ve0, mdot0, F0, a0, tBurnRough, pHalf, pEmpty, sim, vb, Hideal, Rideal, Tideal, dragAtBurnout, W, Ep, eta, pressureCurve }
+    return { vtPlain, vtChute, chuteArea, chuteMass, stages, topAlone, V, Vw, Va0, pGauge, p0, AnGeo, An, Af, Cd, mDry, mWater, m0, theta, ve0, mdot0, F0, a0, tBurnRough, pHalf, pEmpty, sim, vb, Hideal, Rideal, Tideal, dragAtBurnout, W, Ep, eta, pressureCurve }
   }, [design])
 }
 

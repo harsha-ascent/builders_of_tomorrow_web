@@ -12,8 +12,10 @@ import { StatTile } from '../../components/ui/StatTile'
 import { fmt } from '../../lib/format'
 import { predict } from '../../lib/runSim'
 import { useDesigns } from '../../lib/useDesigns'
-import { SAMPLE_DESIGNS, WORKSHOP_WATER_ROCKET, makeDesign } from '../../sim/presets'
-import { BOTTLES, LIMITS, NOZZLES, bottleSpec, psiToPa } from '../../sim/rocket'
+import type { RocketDesign } from '../../../shared/types'
+import { DEFAULT_BOOSTER, SAMPLE_DESIGNS, WORKSHOP_WATER_ROCKET, makeDesign, normalizeDesign } from '../../sim/presets'
+import { BOTTLES, LIMITS, NOZZLES, SAFE_LANDING_MS, bottleSpec, psiToPa, terminalVelocity, totalDryMassG } from '../../sim/rocket'
+import { rocketDims } from '../../three/Rocket3D'
 import { useDesignStore } from '../../store/designStore'
 import { WorkbenchScene } from '../../three/WorkbenchScene'
 
@@ -24,13 +26,25 @@ export default function BuildPage() {
   const load = useDesignStore((s) => s.load)
   const startNew = useDesignStore((s) => s.startNew)
   const markSaved = useDesignStore((s) => s.markSaved)
-  const { saveDesign, remote } = useDesigns(WORKSHOP_WATER_ROCKET)
+  const { saveDesign, remote } = useDesigns<RocketDesign>(WORKSHOP_WATER_ROCKET, normalizeDesign)
   const navigate = useNavigate()
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   const prediction = useMemo(() => predict(design), [design])
   const spec = bottleSpec(design.bottleVolumeL)
   const pressureKPa = psiToPa(design.pressurePsi) / 1000
+  const vTerminal = useMemo(() => terminalVelocity(design), [design])
+  const dims = useMemo(() => rocketDims(design), [design])
+  const stageCount = design.boosters.length + 1
+
+  function setStageCount(n: number) {
+    const boosters = design.boosters.slice(0, Math.max(0, n - 1))
+    while (boosters.length < n - 1) boosters.unshift({ ...DEFAULT_BOOSTER })
+    update({ boosters })
+  }
+  function updateBooster(i: number, patch: Partial<(typeof design.boosters)[number]>) {
+    update({ boosters: design.boosters.map((b, j) => (j === i ? { ...b, ...patch } : b)) })
+  }
 
   async function onSave() {
     setSaveState('saving')
@@ -154,6 +168,109 @@ export default function BuildPage() {
           </div>
 
           <div className="card flex flex-col gap-5">
+            <div>
+              <h2 className="font-display text-2xl font-bold">🚀🚀 Stages</h2>
+              <p className="text-sm text-ink-soft">
+                A booster bottle underneath fires first, then drops away so the lighter top stage keeps going. Real two-stage water rockets are
+                an expert build!
+              </p>
+            </div>
+            <Segmented
+              label="How many stages?"
+              value={stageCount}
+              options={[
+                { value: 1, label: 'Single', emoji: '🚀' },
+                { value: 2, label: 'Two-stage', emoji: '🚀🚀', hint: 'booster + top' },
+                { value: 3, label: 'Three-stage', emoji: '🚀🚀🚀', hint: 'expert' },
+              ]}
+              onChange={(v) => setStageCount(v)}
+            />
+            {design.boosters.map((b, i) => (
+              <div key={i} className="rounded-2xl border-2 border-grape/30 bg-grape/5 p-4">
+                <div className="mb-3 font-display text-lg font-bold text-grape-dark">
+                  Stage {i + 1} · {i === 0 ? 'bottom booster (fires first)' : 'middle booster'}
+                </div>
+                <div className="grid gap-4">
+                  <Segmented
+                    label="Booster bottle"
+                    value={b.bottleVolumeL}
+                    options={BOTTLES.map((bt) => ({ value: bt.volumeL, label: `${bt.volumeL} L` }))}
+                    onChange={(v) => updateBooster(i, { bottleVolumeL: v })}
+                  />
+                  <Slider
+                    label="Booster water"
+                    emoji="💧"
+                    value={b.waterFraction}
+                    min={LIMITS.waterFraction.min}
+                    max={LIMITS.waterFraction.max}
+                    step={LIMITS.waterFraction.step}
+                    display={`${fmt.pct(b.waterFraction)} · ${fmt.litres(b.bottleVolumeL, b.waterFraction)}`}
+                    onChange={(v) => updateBooster(i, { waterFraction: v })}
+                  />
+                  <Segmented
+                    label="Booster nozzle"
+                    value={b.nozzleDiameterMm}
+                    options={NOZZLES.map((n) => ({ value: n.diameterMm, label: `${n.diameterMm} mm` }))}
+                    onChange={(v) => updateBooster(i, { nozzleDiameterMm: v })}
+                  />
+                  <Slider
+                    label="Booster weight (empty, with coupler)"
+                    emoji="⚖️"
+                    value={b.dryMassG}
+                    min={LIMITS.dryMassG.min}
+                    max={LIMITS.dryMassG.max}
+                    step={LIMITS.dryMassG.step}
+                    display={fmt.g(b.dryMassG)}
+                    onChange={(v) => updateBooster(i, { dryMassG: v })}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="chip">📏 Stack height {(dims.total * 100).toFixed(0)} cm</span>
+              <span className="chip">⚖️ Empty stack {fmt.g(totalDryMassG(design))}</span>
+              {design.pressurePsi > 0 && stageCount > 1 && <span className="chip">🫧 All stages pumped to {design.pressurePsi} psi</span>}
+            </div>
+          </div>
+
+          <div className="card flex flex-col gap-5">
+            <div>
+              <h2 className="font-display text-2xl font-bold">🪂 Coming back down</h2>
+              <p className="text-sm text-ink-soft">A soft landing means your rocket can fly again (and nobody gets bonked).</p>
+            </div>
+            <Segmented
+              label="Recovery"
+              value={design.recovery}
+              options={[
+                { value: 'none', label: 'Free fall', emoji: '💥', hint: 'simple, hard landing' },
+                { value: 'parachute', label: 'Parachute', emoji: '🪂', hint: 'nose pops off at the top' },
+              ]}
+              onChange={(v) => update({ recovery: v })}
+            />
+            {design.recovery === 'parachute' && (
+              <Slider
+                label="Canopy size"
+                emoji="🪂"
+                value={design.parachuteDiameterM}
+                min={0.3}
+                max={1.0}
+                step={0.05}
+                display={`${Math.round(design.parachuteDiameterM * 100)} cm across`}
+                ends={['Hanky', 'Bin bag']}
+                onChange={(v) => update({ parachuteDiameterM: v })}
+                hint="A thin plastic bag cut into a circle, 8 strings and a swivel. Bigger lands softer, but weighs more and drifts further in wind."
+              />
+            )}
+            <div className={`rounded-2xl p-3 text-sm ${vTerminal <= SAFE_LANDING_MS ? 'bg-grass/20' : 'bg-rocket/10'}`}>
+              <span className="font-display text-base font-bold">
+                {vTerminal <= SAFE_LANDING_MS ? '✅ Soft landing' : '💥 Hard landing'}
+              </span>{' '}
+              · falls at about <strong>{vTerminal.toFixed(1)} m/s</strong> ({fmt.kmh(vTerminal)}).{' '}
+              {vTerminal <= SAFE_LANDING_MS ? 'Gentle enough to fly again.' : `Anything over ${SAFE_LANDING_MS} m/s can crack a bottle or dent a nose.`}
+            </div>
+          </div>
+
+          <div className="card flex flex-col gap-5">
             <h2 className="font-display text-2xl font-bold">🛠️ Launcher setup</h2>
             <Slider
               label="Water"
@@ -189,17 +306,30 @@ export default function BuildPage() {
               ends={['Low & far', 'Straight up']}
               onChange={(v) => update({ launchAngleDeg: v })}
             />
+            <Slider
+              label="Wind"
+              emoji="🌬️"
+              value={design.windMs}
+              min={0}
+              max={6}
+              step={0.5}
+              display={design.windMs === 0 ? 'Calm' : `${design.windMs} m/s tailwind (${fmt.kmh(design.windMs)})`}
+              ends={['Calm', 'Windy']}
+              onChange={(v) => update({ windMs: v })}
+              hint="Wind pushes the rocket (and especially a parachute) downrange. Real launches should wait for less than about 4 m/s."
+            />
           </div>
 
           <div className="card">
             <h2 className="font-display text-2xl font-bold">🔮 Prediction</h2>
             <p className="text-sm text-ink-soft">The simulator’s best guess for this setup (real flights land within about ±25 %). Launch to see it fly!</p>
             {prediction.liftedOff ? (
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <StatTile emoji="⬆️" label="Height" value={fmt.m(prediction.maxHeightM, 0)} tone="sky" />
                 <StatTile emoji="➡️" label="Distance" value={fmt.m(prediction.rangeM, 0)} tone="grass" />
                 <StatTile emoji="⏱️" label="Flight" value={fmt.s(prediction.flightTimeS)} tone="sun" />
                 <StatTile emoji="💨" label="Top speed" value={fmt.kmh(prediction.maxSpeedMs)} tone="rocket" />
+                <StatTile emoji={prediction.safeLanding ? '✅' : '💥'} label="Landing" value={fmt.ms(prediction.landingSpeedMs)} sub={prediction.safeLanding ? 'soft' : 'hard'} tone={prediction.safeLanding ? 'grass' : 'rocket'} />
               </div>
             ) : (
               <Callout emoji="🪨" tone="rocket" className="mt-3" title="Too heavy to lift off!">

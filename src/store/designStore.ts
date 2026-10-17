@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { LaunchResult, RocketDesign } from '../../shared/types'
-import { DEFAULT_DESIGN, makeDesign } from '../sim/presets'
+import { DEFAULT_DESIGN, makeDesign, normalizeDesign } from '../sim/presets'
 
 interface DesignState {
   /** The rocket currently on the workbench / launch pad. */
@@ -32,6 +32,10 @@ export const useDesignStore = create<DesignState>()(
     {
       name: 'bot:workbench:v1',
       partialize: (s) => ({ design: s.design, dirty: s.dirty }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<DesignState>
+        return { ...current, ...p, design: p.design ? normalizeDesign(p.design) : current.design }
+      },
     },
   ),
 )

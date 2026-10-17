@@ -9,7 +9,7 @@
  * Numbers are deliberately kept in SI units inside this file. The UI converts
  * to kid-friendly units (psi, litres, grams) at the edges.
  */
-import type { FlightPhase, LaunchResult, NoseShape, RocketDesign, TrajectorySample } from '../../shared/types'
+import type { FlightEvent, FlightPhase, LaunchResult, NoseShape, RocketDesign, StageSpec, TrajectorySample } from '../../shared/types'
 
 export const PHYS = {
   g: 9.81, // m/s²
@@ -121,25 +121,111 @@ export interface SimOptions {
   guideLengthM?: number
 }
 
+/** Parachute model: a flat plastic canopy that pops out when the nose falls off at apogee. */
+export const CHUTE = {
+  /** Drag coefficient referenced to the flat (nominal) canopy area. */
+  cd: 0.75,
+  /** Canopy + lines mass per square metre of nominal area (thin plastic). */
+  massPerM2Kg: 0.06,
+  /** Nose-cone catch, swivel and string. */
+  hardwareKg: 0.01,
+  /** Seconds after apogee before the nose lets go. */
+  deployDelayS: 0.3,
+  /** Seconds for the canopy to inflate fully. */
+  inflateS: 0.5,
+} as const
+
+/** Landing at or below this speed counts as "soft": the rocket can fly again. */
+export const SAFE_LANDING_MS = 7
+
+export const STAGING = {
+  /** Extra drag per attached booster (couplers, extra fins). */
+  cdPerBooster: 0.05,
+  maxBoosters: 2,
+} as const
+
+export function parachuteAreaM2(diameterM: number) {
+  return Math.PI * (diameterM / 2) ** 2
+}
+
+export function parachuteMassKg(design: Pick<RocketDesign, 'recovery' | 'parachuteDiameterM'>) {
+  if (design.recovery !== 'parachute') return 0
+  return CHUTE.hardwareKg + CHUTE.massPerM2Kg * parachuteAreaM2(design.parachuteDiameterM)
+}
+
+/** All stages bottom-first; the last one is the top stage carrying the nose (and parachute). */
+export function stageList(design: RocketDesign): StageSpec[] {
+  const top: StageSpec = {
+    bottleVolumeL: design.bottleVolumeL,
+    waterFraction: design.waterFraction,
+    nozzleDiameterMm: design.nozzleDiameterMm,
+    dryMassG: design.dryMassG + parachuteMassKg(design) * 1000,
+  }
+  return [...(design.boosters ?? []).slice(0, STAGING.maxBoosters), top]
+}
+
+/** Empty mass of the whole stack in grams (including the parachute). */
+export function totalDryMassG(design: RocketDesign) {
+  return stageList(design).reduce((m, s) => m + s.dryMassG, 0)
+}
+
+/** Steady fall speed of the empty top stage, with or without its parachute. */
+export function terminalVelocity(design: RocketDesign): number {
+  const { g, rhoAir } = PHYS
+  const spec = bottleSpec(design.bottleVolumeL)
+  const m = design.dryMassG / 1000 + parachuteMassKg(design)
+  const Af = Math.PI * (spec.diameterM / 2) ** 2
+  let cdA = dragCoefficient(design) * Af
+  if (design.recovery === 'parachute') cdA += CHUTE.cd * parachuteAreaM2(design.parachuteDiameterM)
+  return Math.sqrt((2 * m * g) / (rhoAir * cdA))
+}
+
+interface StageState {
+  V: number
+  Vw: number
+  Va0: number
+  An: number
+  mDry: number
+  diameter: number
+  pressure: number
+  mAir: number
+  tAir: number
+  phase: 'thrust' | 'air' | 'done'
+}
+
 export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): LaunchResult {
   const dt = opts.dt ?? 0.0005
   const sampleInterval = opts.sampleIntervalS ?? 0.01
-  const maxTime = opts.maxTimeS ?? 90
+  const maxTime = opts.maxTimeS ?? 120
   const y0 = opts.launcherHeightM ?? 0.4
   const guideLength = opts.guideLengthM ?? 0.3
 
   const { g, rhoWater, rhoAir, pAtm, gamma, rAir, tempK, speedOfSound } = PHYS
-  const spec = bottleSpec(design.bottleVolumeL)
-
-  const V = design.bottleVolumeL / 1000 // m³
-  const waterFraction = clamp(design.waterFraction, 0, 0.95)
-  let Vw = waterFraction * V
-  const Va0 = Math.max(V - Vw, 1e-6)
   const p0 = pAtm + psiToPa(clamp(design.pressurePsi, 0, 200))
-  const An = NOZZLE_DISCHARGE * Math.PI * (design.nozzleDiameterMm / 2000) ** 2 // effective nozzle area m²
-  const Af = Math.PI * (spec.diameterM / 2) ** 2 // frontal area m²
-  const Cd = dragCoefficient(design)
-  const mDry = clamp(design.dryMassG, 1, 5000) / 1000
+  const wind = clamp(design.windMs ?? 0, -15, 15)
+
+  const stages: StageState[] = stageList(design).map((sp) => {
+    const V = sp.bottleVolumeL / 1000
+    const Vw = clamp(sp.waterFraction, 0, 0.95) * V
+    return {
+      V,
+      Vw,
+      Va0: Math.max(V - Vw, 1e-6),
+      An: NOZZLE_DISCHARGE * Math.PI * (sp.nozzleDiameterMm / 2000) ** 2,
+      mDry: clamp(sp.dryMassG, 1, 5000) / 1000,
+      diameter: bottleSpec(sp.bottleVolumeL).diameterM,
+      pressure: p0,
+      mAir: (p0 * Math.max(V - Vw, 1e-6)) / (rAir * tempK),
+      tAir: tempK,
+      phase: 'thrust',
+    }
+  })
+  const nStages = stages.length
+  let cur = 0
+
+  const baseCd = dragCoefficient(design)
+  const hasChute = design.recovery === 'parachute'
+  const chuteCdA = hasChute ? CHUTE.cd * parachuteAreaM2(design.parachuteDiameterM) : 0
 
   const theta = (clamp(design.launchAngleDeg, 1, 90) * Math.PI) / 180
   const axis = { x: Math.cos(theta), y: Math.sin(theta) }
@@ -149,120 +235,165 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
   let vx = 0
   let vy = 0
   let t = 0
-  let phase: FlightPhase = 'thrust'
-  let mAir = (p0 * Va0) / (rAir * tempK) // kg of air in the bottle
-  // The air cools as it expands (adiabatic). Once the water is gone it keeps roughly this temperature.
-  let tAir = tempK
-  let pressure = p0
   let liftedOff = false
+  let burnedOut = false
+  let apogeeReached = false
+  let apogeeT = 0
+  let chute = 0
+  let deployT: number | null = null
+  let phase: FlightPhase = 'thrust'
 
   let maxHeight = y0
-  let apogeeTime = 0
+  let maxHeightT = 0
   let maxSpeed = 0
   let burnoutSpeed = 0
   let thrustEndTime = 0
   let maxAccel = 0
+  let landingSpeed = 0
+  const events: FlightEvent[] = []
+  const separations: number[] = []
 
   const samples: TrajectorySample[] = []
   let nextSample = 0
-
   const record = (ph: FlightPhase) => {
+    const s = stages[Math.min(cur, nStages - 1)]
     samples.push({
       t,
       x,
       y: Math.max(y, 0),
       vx,
       vy,
-      water: Vw / V,
-      pressureKPa: Math.max(pressure - pAtm, 0) / 1000,
+      water: s.Vw / s.V,
+      pressureKPa: Math.max(s.pressure - pAtm, 0) / 1000,
       phase: ph,
+      attached: nStages - Math.min(cur, nStages - 1),
+      chute,
     })
+  }
+  const event = (type: FlightEvent['type'], stage?: number) => {
+    events.push({ type, t, x, y: Math.max(y, 0), vx, vy, ...(stage !== undefined ? { stage } : {}) })
   }
 
   record('ready')
   nextSample = sampleInterval
 
   while (t < maxTime) {
-    const m = mDry + rhoWater * Vw
+    // ---- Mass and geometry of what is still attached --------------------
+    // The top stage is always attached, even after it has burned out.
+    const attachedFrom = Math.min(cur, nStages - 1)
+    let m = 0
+    let maxD = 0
+    for (let i = attachedFrom; i < nStages; i++) {
+      m += stages[i].mDry + rhoWater * stages[i].Vw
+      maxD = Math.max(maxD, stages[i].diameter)
+    }
+    const Af = Math.PI * (maxD / 2) ** 2
+    const Cd = baseCd + STAGING.cdPerBooster * (nStages - attachedFrom - 1)
+
     const speed = Math.hypot(vx, vy)
     const travelled = Math.hypot(x, y - y0)
-
-    // While on the launch guide the rocket points along the launch angle; after that it flies nose-first.
     const onGuide = travelled < guideLength
     const dir = onGuide || speed < 0.5 ? axis : { x: vx / speed, y: vy / speed }
 
-    // ---- Thrust ---------------------------------------------------------
+    // ---- Thrust from the current stage -----------------------------------
     let thrust = 0
-    if (phase === 'thrust') {
-      const Va = V - Vw
-      pressure = p0 * (Va0 / Va) ** gamma
-      if (Vw <= 1e-9) {
-        // Water is gone; whatever air is left now rushes out, having cooled while it expanded.
-        Vw = 0
-        tAir = tempK * (Va0 / V) ** (gamma - 1)
-        mAir = (pressure * V) / (rAir * tAir)
-        phase = 'air'
-      } else if (pressure <= pAtm) {
-        phase = 'coast'
-      } else {
-        const ve = Math.sqrt((2 * (pressure - pAtm)) / rhoWater)
-        thrust = 2 * An * (pressure - pAtm) // = rhoWater * An * ve²
-        Vw = Math.max(Vw - An * ve * dt, 0)
-      }
-    }
-    if (phase === 'air') {
-      const rhoIn = mAir / V
-      pressure = rhoIn * rAir * tAir
-      const ratio = pressure / pAtm
-      if (ratio <= 1.002 || mAir <= 0) {
-        phase = 'coast'
-        pressure = pAtm
-        burnoutSpeed = speed
-        thrustEndTime = t
-      } else {
-        let mdot: number
-        let ve: number
-        let pExit = pAtm
-        if (ratio > 1.893) {
-          // Choked flow: the nozzle is at the speed of sound.
-          const k = gamma
-          mdot = An * pressure * Math.sqrt(k / (rAir * tAir)) * (2 / (k + 1)) ** ((k + 1) / (2 * (k - 1)))
-          const tStar = (tAir * 2) / (k + 1)
-          ve = Math.sqrt(k * rAir * tStar)
-          pExit = pressure * (2 / (k + 1)) ** (k / (k - 1))
+    if (cur < nStages) {
+      const s = stages[cur]
+      if (s.phase === 'thrust') {
+        const Va = s.V - s.Vw
+        s.pressure = p0 * (s.Va0 / Va) ** gamma
+        if (s.Vw <= 1e-9) {
+          s.Vw = 0
+          s.tAir = tempK * (s.Va0 / s.V) ** (gamma - 1)
+          s.mAir = (s.pressure * s.V) / (rAir * s.tAir)
+          s.phase = 'air'
+        } else if (s.pressure <= pAtm) {
+          s.phase = 'done'
         } else {
-          ve = Math.min(Math.sqrt((2 * (pressure - pAtm)) / rhoIn), speedOfSound)
-          mdot = rhoIn * An * ve
+          const ve = Math.sqrt((2 * (s.pressure - pAtm)) / rhoWater)
+          thrust = 2 * s.An * (s.pressure - pAtm)
+          s.Vw = Math.max(s.Vw - s.An * ve * dt, 0)
         }
-        thrust = mdot * ve + (pExit - pAtm) * An
-        mAir = Math.max(mAir - mdot * dt, 0)
+      }
+      if (s.phase === 'air') {
+        const rhoIn = s.mAir / s.V
+        s.pressure = rhoIn * rAir * s.tAir
+        const ratio = s.pressure / pAtm
+        if (ratio <= 1.002 || s.mAir <= 0) {
+          s.phase = 'done'
+          s.pressure = pAtm
+        } else {
+          let mdot: number
+          let ve: number
+          let pExit = pAtm
+          if (ratio > 1.893) {
+            const k = gamma
+            mdot = s.An * s.pressure * Math.sqrt(k / (rAir * s.tAir)) * (2 / (k + 1)) ** ((k + 1) / (2 * (k - 1)))
+            const tStar = (s.tAir * 2) / (k + 1)
+            ve = Math.sqrt(k * rAir * tStar)
+            pExit = s.pressure * (2 / (k + 1)) ** (k / (k - 1))
+          } else {
+            ve = Math.min(Math.sqrt((2 * (s.pressure - pAtm)) / rhoIn), speedOfSound)
+            mdot = rhoIn * s.An * ve
+          }
+          thrust = mdot * ve + (pExit - pAtm) * s.An
+          s.mAir = Math.max(s.mAir - mdot * dt, 0)
+        }
+      }
+      if (s.phase === 'done') {
+        if (!liftedOff) break // the bottom stage could not even lift the stack
+        if (cur < nStages - 1) {
+          event('stage-separation', cur)
+          separations.push(t)
+          cur++
+          phase = 'thrust'
+        } else {
+          cur = nStages
+          burnedOut = true
+          burnoutSpeed = speed
+          thrustEndTime = t
+          event('burnout')
+          phase = 'coast'
+        }
+      } else {
+        phase = s.phase
       }
     }
+
+    // ---- Parachute --------------------------------------------------------
+    if (hasChute && apogeeReached && deployT !== null && t >= deployT) {
+      const newChute = Math.min(1, (t - deployT) / CHUTE.inflateS)
+      if (chute === 0 && newChute > 0) event('parachute')
+      chute = newChute
+      phase = 'parachute'
+    }
+
     // ---- Forces -----------------------------------------------------------
-    const drag = 0.5 * rhoAir * Cd * Af * speed * speed
-    const dragX = speed > 0 ? (-drag * vx) / speed : 0
-    const dragY = speed > 0 ? (-drag * vy) / speed : 0
+    const relVx = vx - wind
+    const relSpeed = Math.hypot(relVx, vy)
+    const cdA = Cd * Af + chute * chuteCdA
+    const drag = 0.5 * rhoAir * cdA * relSpeed * relSpeed
+    const dragX = relSpeed > 0 ? (-drag * relVx) / relSpeed : 0
+    const dragY = relSpeed > 0 ? (-drag * vy) / relSpeed : 0
 
     let ax = (thrust * dir.x + dragX) / m
     let ay = (thrust * dir.y + dragY) / m - g
 
     if (!liftedOff) {
-      // The launcher holds the rocket until thrust beats gravity along the guide.
       const alongGuide = ax * axis.x + ay * axis.y
       if (alongGuide <= 0) {
         ax = 0
         ay = 0
         vx = 0
         vy = 0
-        if (phase === 'coast') break // never going to fly
       } else {
         liftedOff = true
+        event('liftoff')
       }
     }
 
     maxAccel = Math.max(maxAccel, Math.hypot(ax, ay + g))
 
-    // Semi-implicit Euler keeps this stable with a tiny step.
     vx += ax * dt
     vy += ay * dt
     x += vx * dt
@@ -273,12 +404,20 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
     maxSpeed = Math.max(maxSpeed, newSpeed)
     if (y > maxHeight) {
       maxHeight = y
-      apogeeTime = t
+      maxHeightT = t
+    }
+    if (liftedOff && burnedOut && !apogeeReached && vy < 0) {
+      apogeeReached = true
+      apogeeT = t
+      event('apogee')
+      if (hasChute) deployT = t + CHUTE.deployDelayS
     }
 
     if (liftedOff && y <= 0 && vy < 0) {
       y = 0
+      landingSpeed = newSpeed
       phase = 'landed'
+      event('landed')
       record('landed')
       break
     }
@@ -300,10 +439,18 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
       thrustTimeS: 0,
       maxGs: 0,
       apogeeTimeS: 0,
+      landingSpeedMs: 0,
+      safeLanding: false,
+      descentTimeS: 0,
+      parachuteDeployedAtS: null,
+      stageSeparationsS: [],
+      stageCount: nStages,
+      events,
       samples,
     }
   }
 
+  const chuteEvent = events.find((e) => e.type === 'parachute')
   return {
     liftedOff: true,
     maxHeightM: round(maxHeight - y0, 2),
@@ -313,7 +460,14 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
     burnoutSpeedMs: round(burnoutSpeed || maxSpeed, 2),
     thrustTimeS: round(thrustEndTime, 3),
     maxGs: round(maxAccel / g, 1),
-    apogeeTimeS: round(apogeeTime, 2),
+    apogeeTimeS: round(apogeeT || maxHeightT, 2),
+    landingSpeedMs: round(landingSpeed, 2),
+    safeLanding: landingSpeed <= SAFE_LANDING_MS,
+    descentTimeS: round(t - (apogeeT || maxHeightT), 2),
+    parachuteDeployedAtS: chuteEvent ? round(chuteEvent.t, 2) : null,
+    stageSeparationsS: separations.map((v) => round(v, 3)),
+    stageCount: nStages,
+    events,
     samples,
   }
 }
@@ -327,25 +481,29 @@ export function quickStats(design: RocketDesign) {
     rangeM: r.rangeM,
     flightTimeS: r.flightTimeS,
     maxSpeedMs: r.maxSpeedMs,
+    landingSpeedMs: r.landingSpeedMs,
+    safeLanding: r.safeLanding,
   }
 }
 
+export type SweepKey = 'waterFraction' | 'pressurePsi' | 'launchAngleDeg' | 'parachuteDiameterM' | 'windMs' | 'dryMassG'
+
 /** Run the sim across a range of one setting, for charts. */
-export function sweep<K extends 'waterFraction' | 'pressurePsi' | 'launchAngleDeg'>(
+export function sweep(
   design: RocketDesign,
-  key: K,
+  key: SweepKey,
   values: number[],
-): { value: number; maxHeightM: number; rangeM: number }[] {
+): { value: number; maxHeightM: number; rangeM: number; landingSpeedMs: number; flightTimeS: number }[] {
   return values.map((value) => {
     const r = simulateLaunch({ ...design, [key]: value }, { sampleIntervalS: 1 })
-    return { value, maxHeightM: r.maxHeightM, rangeM: r.rangeM }
+    return { value, maxHeightM: r.maxHeightM, rangeM: r.rangeM, landingSpeedMs: r.landingSpeedMs, flightTimeS: r.flightTimeS }
   })
 }
 
 /** Linear interpolation into the trajectory for smooth animation. */
 export function sampleAt(samples: TrajectorySample[], t: number): TrajectorySample {
   if (samples.length === 0) {
-    return { t: 0, x: 0, y: 0, vx: 0, vy: 0, water: 0, pressureKPa: 0, phase: 'ready' }
+    return { t: 0, x: 0, y: 0, vx: 0, vy: 0, water: 0, pressureKPa: 0, phase: 'ready', attached: 1, chute: 0 }
   }
   if (t <= samples[0].t) return samples[0]
   const last = samples[samples.length - 1]
@@ -370,6 +528,8 @@ export function sampleAt(samples: TrajectorySample[], t: number): TrajectorySamp
     water: a.water + (b.water - a.water) * f,
     pressureKPa: a.pressureKPa + (b.pressureKPa - a.pressureKPa) * f,
     phase: a.phase,
+    attached: Math.min(a.attached, b.attached),
+    chute: a.chute + (b.chute - a.chute) * f,
   }
 }
 

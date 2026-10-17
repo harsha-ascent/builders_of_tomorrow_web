@@ -35,6 +35,7 @@ export const launches = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     designId: text('design_id').references(() => designs.id, { onDelete: 'set null' }),
+    workshop: text('workshop').notNull().default('water-rocket'),
     designName: text('design_name').notNull(),
     settings: jsonb('settings').$type<Record<string, unknown>>().notNull(),
     result: jsonb('result').$type<Record<string, unknown>>().notNull(),

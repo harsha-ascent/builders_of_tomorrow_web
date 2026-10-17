@@ -7,7 +7,8 @@ import { LazyMount } from '../../components/ui/LazyMount'
 import { SectionTitle } from '../../components/ui/SectionTitle'
 import { fmt } from '../../lib/format'
 import { DEFAULT_DESIGN } from '../../sim/presets'
-import { sweep } from '../../sim/rocket'
+import { CHUTE, SAFE_LANDING_MS, simulateLaunch, sweep } from '../../sim/rocket'
+import { simOptionsFor } from '../../three/launcherGeometry'
 import { AngleScene, ANGLE_COLORS, ANGLE_OPTIONS, useAngleFlights } from '../../three/explainers/AngleScene'
 import { NewtonScene } from '../../three/explainers/NewtonScene'
 import { PartsScene, ROCKET_PARTS } from '../../three/explainers/PartsScene'
@@ -28,6 +29,8 @@ export default function LearnPage() {
       <PartsSection />
       <AngleSection />
       <WaterSection />
+      <ParachuteSection />
+      <StagesSection />
       <Glossary />
 
       <Callout emoji="🎓" title="Older builder? Want the real equations?" tone="grape" className="mt-12">
@@ -253,6 +256,76 @@ function WaterSection() {
   )
 }
 
+function ParachuteSection() {
+  const rows = useMemo(
+    () => sweep({ ...STANDARD, recovery: 'parachute' }, 'parachuteDiameterM', [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+    [],
+  )
+  const noChute = useMemo(() => simulateLaunch(STANDARD, { ...simOptionsFor(90), sampleIntervalS: 1 }), [])
+  const safe = rows.find((r) => r.landingSpeedMs <= SAFE_LANDING_MS)
+  return (
+    <section className="mb-12">
+      <SectionTitle emoji="🪂" title="Coming down safely" subtitle="What goes up must come down. The question is: how fast?" />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="card">
+          <p className="prose-kid">
+            Without a parachute the empty rocket falls back at about <strong>{noChute.landingSpeedMs.toFixed(0)} m/s</strong> — {Math.round(noChute.landingSpeedMs * 3.6)} km/h — fast enough to
+            crack the bottle or hurt someone. A parachute is just a big sheet that catches a LOT of air. The rocket falls until the air
+            pushing up on the canopy equals its weight; then it drifts down at a steady <strong>terminal velocity</strong>.
+          </p>
+          <Callout emoji="🛠️" tone="grass" className="mt-4" title="How real water-rocket parachutes work">
+            The nose cone sits loosely on top. At the top of the flight the rocket slows, tips over, and the nose cone (with the folded canopy
+            inside) falls off {CHUTE.deployDelayS * 1000} ms or so later. Eight strings, a swivel and a circle cut from a thin plastic bag are all you need.
+          </Callout>
+        </div>
+        <div className="card">
+          <h3 className="font-display text-xl font-bold">Landing speed vs. canopy size</h3>
+          <p className="mb-3 text-ink-soft">Standard rocket. Green zone: {SAFE_LANDING_MS} m/s or slower is a soft landing.</p>
+          <SweepChart data={rows} metric="landingSpeedMs" formatX={(v) => `${Math.round(v * 100)} cm`} highlight={safe?.value} color="#845ec2" xLabel="Canopy diameter" digits={1} />
+          <p className="mt-2 text-sm text-ink-soft">
+            {safe ? `A canopy about ${Math.round(safe.value * 100)} cm across is the smallest that lands this rocket softly.` : 'None of these canopies is big enough — try a lighter rocket.'}{' '}
+            Bigger canopies land even softer but weigh more and drift further in the wind.
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function StagesSection() {
+  const rows = useMemo(() => {
+    const top = { ...STANDARD, bottleVolumeL: 1, dryMassG: 90, waterFraction: 0.33, pressurePsi: 50 }
+    const booster = { bottleVolumeL: 2, waterFraction: 0.35, nozzleDiameterMm: 22, dryMassG: 100 }
+    return [0, 1, 2].map((n) => {
+      const r = simulateLaunch({ ...top, boosters: Array.from({ length: n }, () => ({ ...booster })) }, { ...simOptionsFor(90), sampleIntervalS: 1 })
+      return { value: n + 1, maxHeightM: r.maxHeightM, rangeM: r.rangeM, flightTimeS: r.flightTimeS }
+    })
+  }, [])
+  return (
+    <section className="mb-12">
+      <SectionTitle emoji="🚀🚀" title="Why do real rockets have stages?" subtitle="Because carrying an empty fuel tank to the top is a waste of push." />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="card">
+          <p className="prose-kid">
+            A <strong>booster</strong> bottle underneath fires first and lifts the whole stack. The moment it runs dry it <strong>drops away</strong>,
+            so the top stage does not have to drag an empty bottle any higher. Lighter rocket, same push, bigger acceleration — remember{' '}
+            <strong>a = F ÷ m</strong>? Space rockets like Saturn V and Falcon 9 do exactly this.
+          </p>
+          <Callout emoji="🧩" tone="grape" className="mt-4" title="Expert build">
+            Two-stage water rockets need a <strong>coupler</strong> that holds both bottles under pressure and lets go at the right moment. It is the
+            trickiest thing in this lab. Try it in the simulator first: Build → Stages.
+          </Callout>
+        </div>
+        <div className="card">
+          <h3 className="font-display text-xl font-bold">Height vs. number of stages</h3>
+          <p className="mb-3 text-ink-soft">Same 1 L top stage, with 2 L boosters added underneath. 50 psi, straight up.</p>
+          <SweepChart data={rows} metric="maxHeightM" formatX={(v) => `${v} stage${v > 1 ? 's' : ''}`} color="#845ec2" xLabel="Stages" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Glossary() {
   const words = [
     ['Thrust', 'The push that moves the rocket forward.'],
@@ -263,6 +336,8 @@ function Glossary() {
     ['Apogee', 'The highest point of the flight.'],
     ['Fair test', 'Changing only ONE thing at a time so you know what caused the difference.'],
     ['Prototype', 'A first version you build to test an idea.'],
+    ['Terminal velocity', 'The steady speed something falls at when air resistance balances its weight.'],
+    ['Stage', 'A part of a rocket with its own tank and nozzle that drops off when it is empty.'],
   ]
   return (
     <section>

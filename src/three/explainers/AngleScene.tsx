@@ -1,6 +1,6 @@
 import { Line, Text } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { Suspense, useMemo, useRef } from 'react'
 import { Group, Quaternion, Vector3 } from 'three'
 import type { LaunchResult, RocketDesign } from '../../../shared/types'
 import { sampleAt, simulateLaunch } from '../../sim/rocket'
@@ -45,10 +45,12 @@ export function AngleScene({ design, selected, flights }: { design: RocketDesign
         <meshStandardMaterial color="#8fd98a" />
       </mesh>
       <gridHelper args={[span * 3, 30, '#4caf5a', '#a5e0a0']} position={[span * 0.4, 0.01, 0]} />
-      {Array.from(flights.entries()).map(([angle, f]) => (
-        <Arc key={angle} angle={angle} flight={f} highlight={angle === selected} />
-      ))}
-      <Flyer design={design} flight={flights.get(selected)!} angle={selected} />
+      <Suspense fallback={null}>
+        {Array.from(flights.entries()).map(([angle, f]) => (
+          <Arc key={angle} angle={angle} flight={f} highlight={angle === selected} />
+        ))}
+        <Flyer design={design} flight={flights.get(selected)!} angle={selected} />
+      </Suspense>
       <LookAt target={[span * 0.4, span * 0.3, 0]} />
     </Canvas>
   )

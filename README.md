@@ -1,21 +1,24 @@
-# Builders of Tomorrow · Water Rocket Lab 🚀
+# Builders of Tomorrow 🚀🌉
 
 Kid-friendly STEM workshops with 3-D animations, by [Ascent Intelligent Technologies](https://ascent-i-tech.in/).
-This is the starter: the **Water Rocket Lab**. More workshops plug into the same shell.
+Two workshops ship today, the **Water Rocket Lab** and the **Bridge Builder**; more plug into the same shell.
 
-## What is inside
+## Water Rocket Lab
 
 | Tab | What kids do |
 | --- | --- |
 | **Learn** | Four interactive 3-D explainers: Newton's third law (“Push Back!”), air pressure (“Squeeze the Air”), parts of the rocket & launcher, launch angles; plus charts for water and pressure. |
 | **Design Cycle** | The Engineering Design Cycle (Ask → Imagine → Plan → Create → Test → Improve) as a clickable diagram with checklists and links into the lab. |
-| **Build** | Design a rocket in 3-D: bottle size, nose shape, fins, nozzle, weight, colours; set water, pressure and angle on the launcher; see a live prediction. |
-| **Launch** | Pump up, count down, and watch the flight in 3-D with a follow camera, slow motion, HUD, results, fun comparisons, a target challenge and a flight log. |
-| **Worksheets** | Seven worksheets (Explorer / Builder / Engineer) that auto-save and print cleanly: fair tests, variables, a design journal, safety. |
+| **Build** | Design a rocket in 3-D: bottle size, nose shape, fins, nozzle, weight, colours; add up to two **booster stages**; choose **free fall or a parachute** (canopy size); set water, pressure, angle and **wind** on the launcher; see a live prediction with landing speed. |
+| **Launch** | Pump up, count down, and watch the flight in 3-D: stage separation with boosters tumbling away, canopy inflating at apogee, follow camera, slow motion, HUD, results, fun comparisons, a target challenge and a flight log. |
+| **Worksheets** | Ten worksheets (Explorer / Builder / Engineer) that auto-save and print cleanly: fair tests, variables, parachutes, two-stage challenge, a design journal, safety, rocket maths. |
 | **My Rockets** | Saved designs, copies, launches; sign in to keep everything across devices. |
+| **The Math** | Ages 12+: KaTeX equations for Newton's laws, Bernoulli thrust, adiabatic expansion, drag, projectile motion, terminal velocity, staging, energy and Euler integration, each with live numbers from the kid's own rocket, plus every modelling assumption. |
 
-The simulator (`src/sim/rocket.ts`) is a real physics model: adiabatic air expansion, Bernoulli water exhaust,
-choked air flow after the water runs out, drag, and a launcher that holds the rocket until thrust beats gravity.
+The simulator (`src/sim/rocket.ts`) is a real physics model: adiabatic air expansion, Bernoulli water exhaust with a
+nozzle discharge coefficient, choked (and adiabatically cooled) air flow after the water runs out, drag against a steady
+wind, sequential booster stages that separate when empty, a parachute that opens after apogee, and a launcher that holds
+the rocket until thrust beats gravity.
 Tests in `src/sim/rocket.test.ts` pin down the behaviour kids are meant to discover (sweet spot for water,
 45° for distance, pointy noses, and so on) and keep the numbers in real-world ranges: a 2 L school rocket at
 40 psi reaches roughly 20–40 m, a good one at 60 psi 30–55 m.
@@ -24,6 +27,21 @@ Tests in `src/sim/rocket.test.ts` pin down the behaviour kids are meant to disco
 marks 40–60 psi as "adult + launch cord" and above 60 psi as "simulator only". Every modelling assumption
 (drag coefficients, nozzle factor 0.95, adiabatic air, no launch-tube boost, perfect stability, ±25 % accuracy)
 is listed in `src/sim/assumptions.ts` and shown on the Build, Launch and Math pages.
+
+## Bridge Builder
+
+| Tab | What kids do |
+| --- | --- |
+| **Learn** | 3-D explainers: squash vs. stretch (tension/compression and buckling), why triangles hold their shape, five bridge types; buckling charts by length and material. |
+| **Build** | A 2-D truss editor on a 5 cm grid across a 40 cm gap: add joints, glue pieces of craft stick, balsa, straw or spaghetti, laminate them (×1–×3), move and delete, undo, start from Warren/Pratt/Howe/king-post/under-deck patterns. Live analysis colours every piece red (pulled) or blue (pushed), shows exaggerated sag, cost against a coin budget and a 3-D preview at the breaking load. |
+| **Load Test** | A 3-D test rig: a bucket filling up at mid-span or a toy truck driving to the worst spot, forces building up in colour until the first piece snaps. Breaking load, sag, mass, cost, efficiency ("holds N× its own weight"), the weakest link and how it failed, advice, and a test log. |
+| **Worksheets** | Six worksheets: push or pull, triangle power, strongest shape test, budget engineer, design journal, bridge maths. |
+| **The Math** | Stress/strain, Euler buckling (with the thickness-cubed and length-squared story), method of joints, the direct-stiffness method the solver uses, determinacy, efficiency and the square-cube law, plus assumptions. |
+
+The solver (`src/sim/bridge.ts`) is a 2-D direct-stiffness truss analysis with self-weight, glue-limited tension,
+Euler buckling capped by crushing, mechanism and connectivity checks, and a linear scale-to-first-failure that gives the
+exact breaking load. Material numbers are rounded real values for classroom items; tests in `src/sim/bridge.test.ts`
+keep single-stick trusses in the few-kilogram range and laminated ones several times stronger.
 
 ## Stack
 
@@ -42,9 +60,12 @@ Everything degrades gracefully: with no keys configured the site runs in **guest
 
 ```
 index.html, src/           Vite app (pages, components, 3-D scenes, physics)
-  src/sim/                 physics engine + tests
-  src/three/               React Three Fiber scenes (launch, workbench, explainers)
-  src/pages/water-rocket/  the workshop tabs
+  src/sim/                 rocket physics + bridge truss solver + tests
+  src/three/               React Three Fiber scenes (launch, workbench, explainers, bridge test rig)
+  src/components/bridge/   2-D truss editor
+  src/pages/water-rocket/  rocket workshop tabs
+  src/pages/bridge-builder/ bridge workshop tabs
+  src/pages/shared/        design-cycle and worksheet views reused by every workshop
   src/content/             worksheets, design-cycle text, workshop catalogue
   src/lib/                 API client, local/remote storage hooks
 shared/                    types + zod schemas shared by browser and API
@@ -76,7 +97,7 @@ npm run db:migrate     # apply migrations to DATABASE_URL from .dev.vars
 | `GET /health` | which services are configured |
 | `GET /me` | upsert + return the signed-in user |
 | `GET /designs?workshop=` · `PUT /designs/:id` · `DELETE /designs/:id` | saved rockets |
-| `GET /launches` · `POST /launches` · `DELETE /launches[/:id]` | flight log |
+| `GET /launches?workshop=` · `POST /launches` · `DELETE /launches[/:id]` | saved tests: rocket launches, bridge load tests |
 | `GET /worksheets/:workshop[/:id]` · `PUT /worksheets/:workshop/:id` | worksheet answers |
 | `GET/POST /files` · `GET/DELETE /files/:id` | uploads in R2 (images/PDF ≤ 5 MB) |
 | `POST /share` | email a launch result via Resend |
@@ -85,9 +106,11 @@ npm run db:migrate     # apply migrations to DATABASE_URL from .dev.vars
 ## Adding the next workshop
 
 1. Add an entry to `src/content/workshops.ts`.
-2. Create `src/pages/<slug>/` with a layout + tabs and register routes in `src/App.tsx`.
-3. Reuse `useDesigns`, `useLaunchLog`, `useWorksheet` with the new `workshop` slug; the API and database are
-   already workshop-aware.
+2. Create `src/pages/<slug>/` with a layout + tabs and register routes in `src/App.tsx`; reuse `DesignCycleView`,
+   `WorksheetsView` and `WorksheetRoute` from `src/pages/shared/`.
+3. Reuse `useDesigns<T>(workshop, normalize)`, `useTestLog<T>(workshop)` and `useWorksheet` with the new slug;
+   add a zod schema to `shared/validation.ts` and map it in `designSchemaFor`. The API and database are already
+   workshop-aware (designs and tests carry a `workshop` column).
 
 ---
 

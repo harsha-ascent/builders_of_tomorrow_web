@@ -16,5 +16,8 @@ export function predict(design: RocketDesign) {
     flightTimeS: r.flightTimeS,
     maxSpeedMs: r.maxSpeedMs,
     thrustTimeS: r.thrustTimeS,
+    landingSpeedMs: r.landingSpeedMs,
+    safeLanding: r.safeLanding,
+    stageCount: r.stageCount,
   }
 }

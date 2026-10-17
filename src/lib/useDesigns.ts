@@ -1,55 +1,65 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { RocketDesign } from '../../shared/types'
+import type { DesignBase } from '../../shared/types'
 import { useAppAuth } from '../auth/AppAuth'
 import { apiFetch } from './api'
 import { LOCAL_KEYS, readLocal, writeLocal } from './local'
 
-export function useDesigns(workshop?: string) {
+export type Normalizer<T extends DesignBase> = (d: Partial<T> & { id: string }) => T
+
+/**
+ * Saved designs for one workshop: in the account when signed in, otherwise in this browser.
+ * `normalize` upgrades older saves to the current shape.
+ */
+export function useDesigns<T extends DesignBase>(workshop: string, normalize: Normalizer<T>) {
   const { isSignedIn, isLoaded, getToken } = useAppAuth()
-  const [designs, setDesigns] = useState<RocketDesign[]>([])
+  const [designs, setDesigns] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const remote = isLoaded && isSignedIn
+
+  const readAllLocal = useCallback(() => readLocal<DesignBase[]>(LOCAL_KEYS.designs, []), [])
+  const forWorkshop = useCallback(
+    (list: DesignBase[]) => list.filter((d) => d.workshop === workshop).map((d) => normalize(d as Partial<T> & { id: string })),
+    [workshop, normalize],
+  )
 
   const refresh = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       if (remote) {
-        const q = workshop ? `?workshop=${encodeURIComponent(workshop)}` : ''
-        const list = await apiFetch<RocketDesign[]>(`/api/designs${q}`, getToken)
-        setDesigns(list)
+        const list = await apiFetch<DesignBase[]>(`/api/designs?workshop=${encodeURIComponent(workshop)}`, getToken)
+        setDesigns(forWorkshop(list))
       } else {
-        const list = readLocal<RocketDesign[]>(LOCAL_KEYS.designs, [])
-        setDesigns(workshop ? list.filter((d) => d.workshop === workshop) : list)
+        setDesigns(forWorkshop(readAllLocal()))
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load rockets')
+      setError(e instanceof Error ? e.message : 'Could not load your designs')
     } finally {
       setLoading(false)
     }
-  }, [remote, workshop, getToken])
+  }, [remote, workshop, getToken, forWorkshop, readAllLocal])
 
   useEffect(() => {
     if (isLoaded) void refresh()
   }, [isLoaded, refresh])
 
   const saveDesign = useCallback(
-    async (design: RocketDesign) => {
+    async (design: T) => {
       const now = new Date().toISOString()
-      const next: RocketDesign = { ...design, updatedAt: now, createdAt: design.createdAt ?? now }
+      const next: T = { ...design, workshop, updatedAt: now, createdAt: design.createdAt ?? now }
       if (remote) {
-        const saved = await apiFetch<RocketDesign>(`/api/designs/${next.id}`, getToken, { method: 'PUT', body: next })
+        const saved = normalize((await apiFetch<DesignBase>(`/api/designs/${next.id}`, getToken, { method: 'PUT', body: next })) as Partial<T> & { id: string })
         setDesigns((list) => upsert(list, saved))
         return saved
       }
-      const all = upsert(readLocal<RocketDesign[]>(LOCAL_KEYS.designs, []), next)
+      const all = upsert(readAllLocal(), next)
       writeLocal(LOCAL_KEYS.designs, all)
-      setDesigns(workshop ? all.filter((d) => d.workshop === workshop) : all)
+      setDesigns(forWorkshop(all))
       return next
     },
-    [remote, getToken, workshop],
+    [remote, getToken, workshop, normalize, forWorkshop, readAllLocal],
   )
 
   const deleteDesign = useCallback(
@@ -59,31 +69,31 @@ export function useDesigns(workshop?: string) {
         setDesigns((list) => list.filter((d) => d.id !== id))
         return
       }
-      const all = readLocal<RocketDesign[]>(LOCAL_KEYS.designs, []).filter((d) => d.id !== id)
+      const all = readAllLocal().filter((d) => d.id !== id)
       writeLocal(LOCAL_KEYS.designs, all)
-      setDesigns(workshop ? all.filter((d) => d.workshop === workshop) : all)
+      setDesigns(forWorkshop(all))
     },
-    [remote, getToken, workshop],
+    [remote, getToken, forWorkshop, readAllLocal],
   )
 
-  /** Copies rockets saved on this device into the signed-in account. */
+  /** Copies designs saved on this device (all workshops) into the signed-in account. */
   const uploadLocalDesigns = useCallback(async () => {
     if (!remote) return 0
-    const local = readLocal<RocketDesign[]>(LOCAL_KEYS.designs, [])
+    const local = readAllLocal()
     for (const d of local) {
-      await apiFetch<RocketDesign>(`/api/designs/${d.id}`, getToken, { method: 'PUT', body: d })
+      await apiFetch<DesignBase>(`/api/designs/${d.id}`, getToken, { method: 'PUT', body: d })
     }
     writeLocal(LOCAL_KEYS.designs, [])
     await refresh()
     return local.length
-  }, [remote, getToken, refresh])
+  }, [remote, getToken, refresh, readAllLocal])
 
-  const localCount = useMemo(() => readLocal<RocketDesign[]>(LOCAL_KEYS.designs, []).length, [designs])
+  const localCount = useMemo(() => readAllLocal().filter((d) => d.workshop === workshop).length, [designs, readAllLocal, workshop])
 
   return { designs, loading, error, refresh, saveDesign, deleteDesign, uploadLocalDesigns, localCount, remote }
 }
 
-function upsert(list: RocketDesign[], item: RocketDesign) {
+function upsert<T extends DesignBase>(list: T[], item: T): T[] {
   const i = list.findIndex((d) => d.id === item.id)
   if (i === -1) return [item, ...list]
   const copy = list.slice()

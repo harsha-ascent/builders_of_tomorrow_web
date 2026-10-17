@@ -1,16 +1,17 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import type { RocketDesign } from '../../shared/types'
-import { rocketDesignSchema } from '../../shared/validation'
+import type { DesignBase } from '../../shared/types'
+import { designSchemaFor } from '../../shared/validation'
 import { requireAuth } from '../auth'
 import type { AppEnv } from '../context'
 import { designs } from '../db/schema'
 
 type Row = typeof designs.$inferSelect
+export type AnyDesign = DesignBase & Record<string, unknown>
 
-export function rowToDesign(row: Row): RocketDesign {
+export function rowToDesign(row: Row): AnyDesign {
   return {
-    ...(row.params as Omit<RocketDesign, 'id' | 'name' | 'workshop'>),
+    ...(row.params as Record<string, unknown>),
     id: row.id,
     name: row.name,
     workshop: row.workshop,
@@ -35,8 +36,10 @@ export const designsRoutes = new Hono<AppEnv>()
   .put('/:id', async (c) => {
     const { userId } = c.get('auth')
     const id = c.req.param('id')
-    const parsed = rocketDesignSchema.safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) return c.json({ error: 'That rocket design is not valid', issues: parsed.error.issues }, 400)
+    const raw = (await c.req.json().catch(() => null)) as { workshop?: unknown } | null
+    const schema = designSchemaFor(typeof raw?.workshop === 'string' ? raw.workshop : undefined)
+    const parsed = schema.safeParse(raw)
+    if (!parsed.success) return c.json({ error: 'That design is not valid', issues: parsed.error.issues }, 400)
     if (parsed.data.id !== id) return c.json({ error: 'Design id mismatch' }, 400)
     const { id: _id, name, workshop, createdAt: _c, updatedAt: _u, ...params } = parsed.data
     void _id
@@ -44,12 +47,12 @@ export const designsRoutes = new Hono<AppEnv>()
     void _u
     const db = c.get('db')
     const existing = await db.select({ userId: designs.userId }).from(designs).where(eq(designs.id, id)).limit(1)
-    if (existing.length > 0 && existing[0].userId !== userId) return c.json({ error: 'That rocket belongs to someone else' }, 403)
+    if (existing.length > 0 && existing[0].userId !== userId) return c.json({ error: 'That design belongs to someone else' }, 403)
     const now = new Date()
     const [row] = await db
       .insert(designs)
-      .values({ id, userId, workshop, name, params, createdAt: now, updatedAt: now })
-      .onConflictDoUpdate({ target: designs.id, set: { name, workshop, params, updatedAt: now } })
+      .values({ id, userId, workshop, name, params: params as Record<string, unknown>, createdAt: now, updatedAt: now })
+      .onConflictDoUpdate({ target: designs.id, set: { name, workshop, params: params as Record<string, unknown>, updatedAt: now } })
       .returning()
     return c.json(rowToDesign(row))
   })

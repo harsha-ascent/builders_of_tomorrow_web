@@ -8,14 +8,28 @@ const effectTone: Record<Assumption['effect'], string> = {
 }
 
 /** Collapsible "how accurate is this?" box. `full` lists every assumption; otherwise the top three. */
-export function AssumptionsPanel({ full = false, className = '' }: { full?: boolean; className?: string }) {
-  const items = full ? ASSUMPTIONS : ASSUMPTIONS.slice(0, 3)
+export function AssumptionsPanel({
+  full = false,
+  className = '',
+  items: allItems = ASSUMPTIONS,
+  note = ACCURACY_NOTE,
+  moreTo = '/workshops/water-rocket/math',
+  accuracy = 'about ±25 %',
+}: {
+  full?: boolean
+  className?: string
+  items?: Assumption[]
+  note?: string
+  moreTo?: string
+  accuracy?: string
+}) {
+  const items = full ? allItems : allItems.slice(0, 3)
   return (
     <details className={`group rounded-2xl border-2 border-dashed border-ink/15 bg-white/60 p-3 ${className}`}>
       <summary className="cursor-pointer list-none font-display text-base font-bold text-ink">
-        <span className="mr-1 inline-block transition group-open:rotate-90">▸</span>🔍 How accurate is this? <span className="font-sans text-sm font-bold text-ink-soft">(estimate, about ±25 %)</span>
+        <span className="mr-1 inline-block transition group-open:rotate-90">▸</span>🔍 How accurate is this? <span className="font-sans text-sm font-bold text-ink-soft">(estimate, {accuracy})</span>
       </summary>
-      <p className="mt-2 text-sm text-ink">{ACCURACY_NOTE}</p>
+      <p className="mt-2 text-sm text-ink">{note}</p>
       <ul className="mt-3 space-y-2">
         {items.map((a) => (
           <li key={a.id} className="rounded-xl bg-white p-3 text-sm">
@@ -33,8 +47,8 @@ export function AssumptionsPanel({ full = false, className = '' }: { full?: bool
         ))}
       </ul>
       {!full && (
-        <Link to="/workshops/water-rocket/math" className="mt-3 inline-block text-sm font-bold text-grape-dark underline">
-          See all {ASSUMPTIONS.length} assumptions and the equations →
+        <Link to={moreTo} className="mt-3 inline-block text-sm font-bold text-grape-dark underline">
+          See all {allItems.length} assumptions and the equations →
         </Link>
       )}
     </details>

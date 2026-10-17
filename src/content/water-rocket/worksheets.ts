@@ -248,6 +248,82 @@ export const WORKSHEETS: Worksheet[] = [
     ],
   },
   {
+    id: 'soft-landing',
+    title: 'Soft Landing: Parachute Designer',
+    emoji: '🪂',
+    level: 'Builder',
+    minutes: 25,
+    summary: 'Bring your rocket home gently. Find the smallest canopy that lands it softly.',
+    intro:
+      'In Build → Coming back down, switch on the parachute. Keep everything else the same and only change the canopy size. A soft landing is 7 m/s or slower.',
+    cycleStep: 'test',
+    sections: [
+      {
+        heading: 'Before the parachute',
+        emoji: '💥',
+        items: [
+          { key: 'pl1', type: 'number', prompt: 'Landing speed with NO parachute (Launch results → Landing)', unit: 'm/s' },
+          { key: 'pl2', type: 'choice', prompt: 'What stops a falling rocket from speeding up forever?', options: ['Gravity switches off', 'Air resistance grows until it balances the weight', 'The rocket runs out of fuel', 'The ground'], answer: 1, explain: 'When drag equals weight the forces balance and the speed stays steady: terminal velocity.' },
+        ],
+      },
+      {
+        heading: 'Canopy experiment',
+        emoji: '📊',
+        items: [
+          { key: 'pl3', type: 'table', prompt: 'Launch with each canopy and record the results.', columns: ['Canopy (cm)', 'Landing speed (m/s)', 'Flight time (s)', 'Soft? (✓/✗)'], rows: 5, prefill: [['30', null, null, null], ['45', null, null, null], ['60', null, null, null], ['80', null, null, null], ['100', null, null, null]] },
+          { key: 'pl4', type: 'number', prompt: 'Smallest canopy that gave a soft landing', unit: 'cm' },
+          { key: 'pl5', type: 'text', prompt: 'What happened to the HEIGHT when you added a bigger parachute? Why?', lines: 3 },
+        ],
+      },
+      {
+        heading: 'Wind!',
+        emoji: '🌬️',
+        items: [
+          { key: 'pl6', type: 'number', prompt: 'Set the wind to 3 m/s with your best canopy. How far did the rocket drift?', unit: 'm' },
+          { key: 'pl7', type: 'text', prompt: 'On a real windy day, where should the launch pad be so the rocket lands in the field and not in the trees?', lines: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'two-stage-challenge',
+    title: 'Two-Stage Challenge',
+    emoji: '🚀🚀',
+    level: 'Engineer',
+    minutes: 30,
+    summary: 'Add a booster, drop it on the way up, and beat your single-stage record.',
+    intro:
+      'In Build → Stages choose Two-stage. First write down your best single-stage height. Then design a booster that beats it, and explain why it works.',
+    cycleStep: 'improve',
+    sections: [
+      {
+        heading: 'The record to beat',
+        emoji: '🏆',
+        items: [
+          { key: 'ts1', type: 'number', prompt: 'Best single-stage height so far', unit: 'm' },
+          { key: 'ts2', type: 'text', prompt: 'Top stage settings (bottle, water, weight):' },
+        ],
+      },
+      {
+        heading: 'Design the booster',
+        emoji: '🔧',
+        items: [
+          { key: 'ts3', type: 'table', prompt: 'Try three boosters. Only change one thing between rows.', columns: ['Booster bottle (L)', 'Booster water (%)', 'Booster weight (g)', 'Stage dropped at (s)', 'Max height (m)'], rows: 3 },
+          { key: 'ts4', type: 'choice', prompt: 'Why does the top stage go higher after the booster drops off?', options: ['It gets more water', 'It is lighter, so the same push gives more acceleration', 'Gravity is weaker up there', 'The air is thicker'], answer: 1, explain: 'a = F ÷ m: dropping the empty booster shrinks m.' },
+          { key: 'ts5', type: 'text', prompt: 'What would happen if the booster were TOO heavy? Try it and describe.', lines: 3 },
+        ],
+      },
+      {
+        heading: 'Engineer’s reflection',
+        emoji: '🧠',
+        items: [
+          { key: 'ts6', type: 'text', prompt: 'A real two-stage rocket needs a coupler that releases at the right moment. What could go wrong if it releases too early? Too late?', lines: 4 },
+          { key: 'ts7', type: 'rating', prompt: 'How much did the two-stage design beat your record?', max: 5 },
+        ],
+      },
+    ],
+  },
+  {
     id: 'rocket-math',
     title: 'Rocket Math Challenge',
     emoji: '🧮',

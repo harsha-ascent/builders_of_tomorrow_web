@@ -71,6 +71,27 @@ export const ASSUMPTIONS: Assumption[] = [
     effect: 'small',
   },
   {
+    id: 'parachute',
+    title: 'Parachute: flat plastic canopy, Cd 0.75, opens 0.3 s after apogee',
+    assume: 'The nose lets go 0.3 s after the top of the flight, the canopy inflates over 0.5 s, and it weighs 60 g per square metre plus 10 g of string and swivel.',
+    reality: 'Nose cones stick, chutes tangle or open late, and a canopy that opens while still climbing can tear. Landing speeds are usually within a metre per second of the model.',
+    effect: 'medium',
+  },
+  {
+    id: 'staging',
+    title: 'Stages share one pressure and separate the instant the lower one empties',
+    assume: 'Every bottle is pumped to the same pressure; the booster drops away cleanly with no delay and no bump.',
+    reality: 'Real couplers leak a little, release a moment late and can nudge the sustainer sideways. Two-stage rockets are the hardest build in the lab.',
+    effect: 'medium',
+  },
+  {
+    id: 'wind',
+    title: 'Wind is steady and horizontal, along the flight direction',
+    assume: 'Drag is computed against the moving air; a tailwind carries the rocket (and especially its parachute) downrange.',
+    reality: 'Gusts and crosswinds also tip the rocket at launch and make it weathercock into the wind.',
+    effect: 'small',
+  },
+  {
     id: 'numerics',
     title: 'Time is chopped into 0.5 ms steps (Euler’s method)',
     assume: 'Forces are recomputed 2 000 times per second of flight.',

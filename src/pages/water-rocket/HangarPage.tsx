@@ -8,11 +8,11 @@ import { SectionTitle } from '../../components/ui/SectionTitle'
 import { fmt } from '../../lib/format'
 import { predict } from '../../lib/runSim'
 import { useDesigns } from '../../lib/useDesigns'
-import { SAMPLE_DESIGNS, WORKSHOP_WATER_ROCKET, makeDesign } from '../../sim/presets'
+import { SAMPLE_DESIGNS, WORKSHOP_WATER_ROCKET, makeDesign, normalizeDesign } from '../../sim/presets'
 import { useDesignStore } from '../../store/designStore'
 
 export default function HangarPage() {
-  const { designs, loading, error, saveDesign, deleteDesign, uploadLocalDesigns, localCount, remote } = useDesigns(WORKSHOP_WATER_ROCKET)
+  const { designs, loading, error, saveDesign, deleteDesign, uploadLocalDesigns, localCount, remote } = useDesigns<RocketDesign>(WORKSHOP_WATER_ROCKET, normalizeDesign)
   const { enabled, isSignedIn } = useAppAuth()
   const current = useDesignStore((s) => s.design)
   const dirty = useDesignStore((s) => s.dirty)
@@ -155,6 +155,9 @@ function DesignChips({ d }: { d: RocketDesign }) {
       <span className="chip">
         {d.noseShape === 'pointy' ? '🔺' : d.noseShape === 'round' ? '🔴' : '⬛'} {d.finCount} fins
       </span>
+      {d.boosters?.length > 0 && <span className="chip bg-grape/20">🚀×{d.boosters.length + 1} stages</span>}
+      {d.recovery === 'parachute' && <span className="chip bg-sun/40">🪂 {Math.round(d.parachuteDiameterM * 100)} cm</span>}
+      {d.windMs > 0 && <span className="chip">🌬️ {d.windMs} m/s</span>}
     </div>
   )
 }

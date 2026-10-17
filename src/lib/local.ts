@@ -29,6 +29,7 @@ export function removeLocal(key: string) {
 export const LOCAL_KEYS = {
   designs: 'bot:designs:v1',
   launches: 'bot:launches:v1',
+  tests: (workshop: string) => `bot:tests:${workshop}:v1`,
   worksheet: (workshop: string, id: string) => `bot:worksheet:${workshop}:${id}:v1`,
   worksheetIndex: 'bot:worksheet-index:v1',
 } as const

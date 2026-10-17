@@ -7,16 +7,26 @@ import { WORKSHEETS } from '../content/water-rocket/worksheets'
 import { useDesigns } from '../lib/useDesigns'
 import { useLaunchLog } from '../lib/useLaunchLog'
 import { useWorksheetIndex } from '../lib/useWorksheet'
-import { WORKSHOP_WATER_ROCKET } from '../sim/presets'
-import { answerableCount } from './water-rocket/WorksheetsPage'
+import type { BridgeDesign, BridgeTestRecord, RocketDesign } from '../../shared/types'
+import { BRIDGE_WORKSHEETS } from '../content/bridge-builder/worksheets'
+import { useTestLog } from '../lib/useTestLog'
+import { WORKSHOP_BRIDGE, normalizeBridge } from '../store/bridgeStore'
+import { WORKSHOP_WATER_ROCKET, normalizeDesign } from '../sim/presets'
+import { answerableCount } from '../content/worksheetUtils'
 
 export default function MyWorkPage() {
   const { enabled, isSignedIn, displayName, email, signOut } = useAppAuth()
-  const { designs } = useDesigns(WORKSHOP_WATER_ROCKET)
+  const { designs } = useDesigns<RocketDesign>(WORKSHOP_WATER_ROCKET, normalizeDesign)
+  const { designs: bridges } = useDesigns<BridgeDesign>(WORKSHOP_BRIDGE, normalizeBridge)
   const { launches } = useLaunchLog()
+  const { records: bridgeTests } = useTestLog<BridgeTestRecord>(WORKSHOP_BRIDGE)
   const index = useWorksheetIndex()
-  const completed = WORKSHEETS.filter((w) => (index[`${WORKSHOP_WATER_ROCKET}/${w.id}`]?.answered ?? 0) >= answerableCount(w)).length
+  const completed =
+    WORKSHEETS.filter((w) => (index[`${WORKSHOP_WATER_ROCKET}/${w.id}`]?.answered ?? 0) >= answerableCount(w)).length +
+    BRIDGE_WORKSHEETS.filter((w) => (index[`${WORKSHOP_BRIDGE}/${w.id}`]?.answered ?? 0) >= answerableCount(w)).length
+  const totalWorksheets = WORKSHEETS.length + BRIDGE_WORKSHEETS.length
   const best = launches.reduce((m, l) => Math.max(m, l.result.maxHeightM), 0)
+  const bestBridge = bridgeTests.reduce((m, t) => Math.max(m, t.result.capacityKg ?? 0), 0)
 
   return (
     <Page>
@@ -41,11 +51,13 @@ export default function MyWorkPage() {
         <p className="mt-1 text-ink-soft">Guest mode: your work is saved in this browser.</p>
       )}
 
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <StatTile emoji="🚀" label="Rockets built" value={String(designs.length)} tone="sky" />
         <StatTile emoji="📒" label="Launches logged" value={String(launches.length)} tone="sun" />
         <StatTile emoji="⬆️" label="Best height" value={best ? `${best.toFixed(1)} m` : '—'} tone="grass" />
-        <StatTile emoji="📝" label="Worksheets done" value={`${completed}/${WORKSHEETS.length}`} tone="grape" />
+        <StatTile emoji="🌉" label="Bridges built" value={String(bridges.length)} tone="grass" />
+        <StatTile emoji="🏋️" label="Strongest bridge" value={bestBridge ? `${bestBridge.toFixed(1)} kg` : '—'} tone="sun" />
+        <StatTile emoji="📝" label="Worksheets done" value={`${completed}/${totalWorksheets}`} tone="grape" />
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -61,8 +73,23 @@ export default function MyWorkPage() {
         </Link>
         <Link to="/workshops/water-rocket/worksheets" className="card transition hover:-translate-y-1">
           <div className="text-4xl">📝</div>
-          <div className="mt-2 font-display text-xl font-bold">Worksheets</div>
+          <div className="mt-2 font-display text-xl font-bold">Rocket worksheets</div>
           <p className="text-ink-soft">Pick up where you left off.</p>
+        </Link>
+        <Link to="/workshops/bridge-builder/hangar" className="card transition hover:-translate-y-1">
+          <div className="text-4xl">🌉</div>
+          <div className="mt-2 font-display text-xl font-bold">My bridges</div>
+          <p className="text-ink-soft">Open, edit or load-test your saved bridges.</p>
+        </Link>
+        <Link to="/workshops/bridge-builder/test" className="card transition hover:-translate-y-1">
+          <div className="text-4xl">🏋️</div>
+          <div className="mt-2 font-display text-xl font-bold">Bridge test log</div>
+          <p className="text-ink-soft">Compare what each version held.</p>
+        </Link>
+        <Link to="/workshops/bridge-builder/worksheets" className="card transition hover:-translate-y-1">
+          <div className="text-4xl">📝</div>
+          <div className="mt-2 font-display text-xl font-bold">Bridge worksheets</div>
+          <p className="text-ink-soft">Triangles, buckling and budgets.</p>
         </Link>
       </div>
 
@@ -74,6 +101,8 @@ export default function MyWorkPage() {
           <Badge earned={best >= 30} emoji="🏔️" label="Sky high (30 m)" />
           <Badge earned={completed >= 1} emoji="📝" label="Worksheet wizard" />
           <Badge earned={completed >= WORKSHEETS.length} emoji="🎓" label="Rocket engineer" />
+          <Badge earned={bridges.length >= 1} emoji="🌉" label="Bridge builder" />
+          <Badge earned={bestBridge >= 10} emoji="🏋️" label="Heavy lifter (10 kg)" />
         </div>
       </section>
     </Page>
