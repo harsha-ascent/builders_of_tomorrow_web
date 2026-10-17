@@ -1,0 +1,15 @@
+{
+  // Tiny scheduled Worker: once a week it asks the Pages API to send the activity summaries.
+  // Deploy:  npx wrangler deploy -c workers/digest-cron/wrangler.jsonc
+  // Secret:  npx wrangler secret put DIGEST_SECRET -c workers/digest-cron/wrangler.jsonc
+  "name": "builders-of-tomorrow-digest-cron",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "triggers": {
+    // Every Monday at 09:00 India time (03:30 UTC).
+    "crons": ["30 3 * * 1"]
+  },
+  "vars": {
+    "APP_ORIGIN": "https://builders-of-tomorrow-web.pages.dev"
+  }
+}

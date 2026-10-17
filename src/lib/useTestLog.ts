@@ -3,6 +3,7 @@ import type { TestRecordBase } from '../../shared/types'
 import { useAppAuth } from '../auth/AppAuth'
 import { apiFetch } from './api'
 import { LOCAL_KEYS, readLocal, writeLocal } from './local'
+import { useEnrollmentStore } from '../store/enrollmentStore'
 
 const MAX_LOCAL = 60
 
@@ -36,6 +37,7 @@ export function useTestLog<T extends TestRecordBase>(workshop: string) {
   const addRecord = useCallback(
     async (record: T) => {
       const withWorkshop = { ...record, workshop }
+      void useEnrollmentStore.getState().join(workshop, { remote, getToken })
       if (remote) {
         const saved = await apiFetch<T>('/api/launches', getToken, { method: 'POST', body: withWorkshop })
         setRecords((l) => [saved, ...l])

@@ -3,6 +3,8 @@ import { cors } from 'hono/cors'
 import type { AppEnv } from './context'
 import { getDb } from './db/client'
 import { designsRoutes } from './routes/designs'
+import { digestRoutes } from './routes/digest'
+import { enrollmentsRoutes } from './routes/enrollments'
 import { filesRoutes } from './routes/files'
 import { launchesRoutes } from './routes/launches'
 import { meRoutes } from './routes/me'
@@ -43,6 +45,8 @@ app.route('/worksheets', worksheetsRoutes)
 app.route('/files', filesRoutes)
 app.route('/share', shareRoutes)
 app.route('/webhooks', webhooksRoutes)
+app.route('/digest', digestRoutes)
+app.route('/enrollments', enrollmentsRoutes)
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => {

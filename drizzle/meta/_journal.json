@@ -15,6 +15,20 @@
       "when": 1792235746428,
       "tag": "0001_confused_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792247437102,
+      "tag": "0002_slimy_cobalt_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792247508764,
+      "tag": "0003_next_red_hulk",
+      "breakpoints": true
     }
   ]
 }

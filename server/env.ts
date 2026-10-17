@@ -11,6 +11,8 @@ export interface Env {
   /** e.g. "Builders of Tomorrow <hello@ascent-i-tech.in>" */
   RESEND_FROM?: string
   APP_ORIGIN?: string
+  /** Shared secret the digest cron Worker presents to POST /api/digest/run. */
+  DIGEST_SECRET?: string
   /** R2 bucket binding for student uploads. */
   FILES?: R2Bucket
 }

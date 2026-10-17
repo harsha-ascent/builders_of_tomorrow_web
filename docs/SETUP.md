@@ -136,6 +136,24 @@ Cloudflare will.
 - [ ] Domain: `builders-of-tomorrow-web.pages.dev` for now; add `builders.ascent-i-tech.in` under Pages → Custom domains when ready
 - [ ] Clerk production instance + custom domain before real students sign up
 
+### Weekly summary email (digest)
+
+Nothing emails on a launch. Once a week a tiny scheduled Worker (`workers/digest-cron`, cron `30 3 * * 1` = Monday
+09:00 IST) calls `POST /api/digest/run` on the site with a shared secret; the API emails each opted-in learner a summary
+of the last 7 days in the workshops they have **joined** (launches, best height, bridge tests, worksheets). Learners
+turn it off under My Work → Weekly summary.
+
+- Secret: `DIGEST_SECRET` (random, in `.dev.vars`) is set on **both** the Pages project and the Worker.
+- Deploy the Worker: `npx wrangler deploy -c workers/digest-cron/wrangler.jsonc`
+- Dry run (no emails): `curl -X POST -H "Authorization: Bearer $DIGEST_SECRET" "https://builders-of-tomorrow-digest-cron.<account>.workers.dev/run?dryRun=1"`
+- Until `ascent-i-tech.in` is verified in Resend, only the Resend account owner's address can receive mail.
+
+### Workshops are opt-in
+
+Learners **join** a workshop (Home → Join workshop, or automatically when they first save a design or log a test).
+My Work, the header links and the weekly summary only show joined workshops; every workshop stays browsable.
+Guest-mode joins live in the browser and are copied into the account on sign-in.
+
 ### Deploying updates
 
 The project was deployed with **direct upload**, not Git integration, so a new version ships with:

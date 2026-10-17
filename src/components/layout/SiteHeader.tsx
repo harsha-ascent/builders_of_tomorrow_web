@@ -1,6 +1,8 @@
 import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react'
 import { Link, NavLink } from 'react-router'
 import { authEnabled } from '../../auth/AppAuth'
+import { WORKSHOPS } from '../../content/workshops'
+import { useEnrollments } from '../../lib/useEnrollments'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 font-display text-base font-semibold transition ${
@@ -8,6 +10,8 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
   }`
 
 export function SiteHeader() {
+  const { enrolled } = useEnrollments()
+  const joined = WORKSHOPS.filter((w) => w.status === 'live' && enrolled.includes(w.slug))
   return (
     <header className="no-print sticky top-0 z-40 border-b border-ink/5 bg-cream/80 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
@@ -22,12 +26,14 @@ export function SiteHeader() {
           <NavLink to="/" end className={navClass}>
             Home
           </NavLink>
-          <NavLink to="/workshops/water-rocket" className={navClass}>
-            🚀 Rockets
+          <NavLink to="/#workshops" className={navClass}>
+            Workshops
           </NavLink>
-          <NavLink to="/workshops/bridge-builder" className={navClass}>
-            🌉 Bridges
-          </NavLink>
+          {joined.map((w) => (
+            <NavLink key={w.slug} to={w.path} className={navClass}>
+              {w.emoji} {w.title.replace(' Lab', '').replace(' Builder', 's')}
+            </NavLink>
+          ))}
           <NavLink to="/me" className={navClass}>
             My Work
           </NavLink>
@@ -55,12 +61,14 @@ export function SiteHeader() {
         <NavLink to="/" end className={navClass}>
           Home
         </NavLink>
-        <NavLink to="/workshops/water-rocket" className={navClass}>
-          🚀 Rockets
+        <NavLink to="/#workshops" className={navClass}>
+          Workshops
         </NavLink>
-        <NavLink to="/workshops/bridge-builder" className={navClass}>
-          🌉 Bridges
-        </NavLink>
+        {joined.map((w) => (
+          <NavLink key={w.slug} to={w.path} className={navClass}>
+            {w.emoji}
+          </NavLink>
+        ))}
         <NavLink to="/me" className={navClass}>
           My Work
         </NavLink>

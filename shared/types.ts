@@ -137,6 +137,24 @@ export interface MeResponse {
   email: string | null
   displayName: string | null
   role: 'student' | 'teacher' | 'parent' | 'admin'
+  digestOptIn: boolean
+  lastDigestAt: string | null
+}
+
+/** A workshop the learner has joined. */
+export interface Enrollment {
+  workshop: string
+  createdAt: string
+}
+
+/** One week of a learner's activity, as summarised in the weekly email. */
+export interface DigestStats {
+  since: string
+  until: string
+  rockets: { designsTouched: number; launches: number; bestHeightM: number | null; softLandings: number }
+  bridges: { designsTouched: number; tests: number; bestLoadKg: number | null }
+  worksheetsTouched: number
+  hasActivity: boolean
 }
 
 export interface FileRecord {

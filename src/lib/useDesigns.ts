@@ -3,6 +3,7 @@ import type { DesignBase } from '../../shared/types'
 import { useAppAuth } from '../auth/AppAuth'
 import { apiFetch } from './api'
 import { LOCAL_KEYS, readLocal, writeLocal } from './local'
+import { useEnrollmentStore } from '../store/enrollmentStore'
 
 export type Normalizer<T extends DesignBase> = (d: Partial<T> & { id: string }) => T
 
@@ -49,6 +50,7 @@ export function useDesigns<T extends DesignBase>(workshop: string, normalize: No
     async (design: T) => {
       const now = new Date().toISOString()
       const next: T = { ...design, workshop, updatedAt: now, createdAt: design.createdAt ?? now }
+      void useEnrollmentStore.getState().join(workshop, { remote, getToken })
       if (remote) {
         const saved = normalize((await apiFetch<DesignBase>(`/api/designs/${next.id}`, getToken, { method: 'PUT', body: next })) as Partial<T> & { id: string })
         setDesigns((list) => upsert(list, saved))

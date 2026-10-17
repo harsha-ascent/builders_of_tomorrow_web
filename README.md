@@ -53,6 +53,8 @@ keep single-stick trusses in the few-kilogram range and laminated ones several t
 - **Email**: **Resend** (share a launch result with a parent/teacher).
 
 Everything degrades gracefully: with no keys configured the site runs in **guest mode** and saves to the browser.
+Workshops are **opt-in**: learners join the ones they want (or join automatically on first save) and My Work shows only
+those. A scheduled Worker (`workers/digest-cron`) sends one **weekly summary email**; nothing emails per launch.
 
 👉 **Account setup, keys and the free-tier checklist: [docs/SETUP.md](docs/SETUP.md).**
 
@@ -102,6 +104,8 @@ npm run db:migrate     # apply migrations to DATABASE_URL from .dev.vars
 | `GET/POST /files` · `GET/DELETE /files/:id` | uploads in R2 (images/PDF ≤ 5 MB) |
 | `POST /share` | email a launch result via Resend |
 | `POST /webhooks/clerk` | keep users in sync with Clerk |
+| `GET/POST /enrollments` · `DELETE /enrollments/:workshop` | workshops the learner has joined |
+| `GET /digest/preview` · `POST /digest/run` (cron Worker, bearer secret) · `PUT /me/preferences` | weekly summary email |
 
 ## Adding the next workshop
 

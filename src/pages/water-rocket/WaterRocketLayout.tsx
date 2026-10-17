@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router'
+import { EnrollBanner } from '../../components/EnrollBanner'
 
 const TABS = [
   { to: 'learn', label: 'Learn', emoji: '📚' },
@@ -39,6 +40,9 @@ export default function WaterRocketLayout() {
             ))}
           </nav>
         </div>
+      </div>
+      <div className="px-4">
+        <EnrollBanner workshop="water-rocket" title="Water Rocket Lab" />
       </div>
       <Outlet />
     </div>

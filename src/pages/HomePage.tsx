@@ -3,6 +3,7 @@ import { Page } from '../components/layout/Page'
 import { LazyMount } from '../components/ui/LazyMount'
 import { WORKSHOPS } from '../content/workshops'
 import { HeroRocket } from '../three/HeroRocket'
+import { JoinWorkshopButton } from '../components/JoinWorkshopButton'
 
 export default function HomePage() {
   return (
@@ -32,9 +33,9 @@ export default function HomePage() {
         </LazyMount>
       </section>
 
-      <section className="mt-16">
+      <section id="workshops" className="mt-16">
         <h2 className="font-display text-3xl font-bold text-ink">Workshops</h2>
-        <p className="mt-1 text-ink-soft">Each workshop is a mini adventure: learn, build, test, and reflect.</p>
+        <p className="mt-1 text-ink-soft">Each workshop is a mini adventure: learn, build, test, and reflect. Join the ones you want on your profile.</p>
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {WORKSHOPS.map((w) => (
             <article key={w.slug} className={`card relative flex flex-col overflow-hidden ${w.status === 'soon' ? 'opacity-80' : ''}`}>
@@ -55,9 +56,12 @@ export default function HomePage() {
                 ))}
               </ul>
               {w.status === 'live' ? (
-                <Link to={w.path} className="btn-sky mt-4">
-                  Open workshop
-                </Link>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link to={w.path} className="btn-sky flex-1">
+                    Open workshop
+                  </Link>
+                  <JoinWorkshopButton workshop={w.slug} />
+                </div>
               ) : (
                 <button type="button" className="btn-ghost mt-4" disabled>
                   Coming soon

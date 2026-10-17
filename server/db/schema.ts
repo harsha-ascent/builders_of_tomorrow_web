@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
   /** Clerk user id (user_...). */
@@ -6,9 +6,25 @@ export const users = pgTable('users', {
   email: text('email'),
   displayName: text('display_name'),
   role: text('role').notNull().default('student'),
+  /** Receive the weekly activity summary by email. */
+  digestOptIn: boolean('digest_opt_in').notNull().default(true),
+  lastDigestAt: timestamp('last_digest_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+/** Which workshops a learner has joined; My Work and the weekly summary only show these. */
+export const enrollments = pgTable(
+  'enrollments',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    workshop: text('workshop').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.workshop] })],
+)
 
 export const designs = pgTable(
   'designs',
