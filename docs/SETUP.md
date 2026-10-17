@@ -54,6 +54,8 @@ service and **where each value goes**. Do them in order; each step takes 5–10 
    - **Password**: turn **off** (the site is code-only, as requested).
    - Optionally turn on **Name** so students can enter a first name.
 3. In **Configure → Paths**, leave the defaults; the app passes `/sign-in`, `/sign-up` and `/me` itself.
+   The sign-in page uses Clerk's **sign-in-or-up** flow (`<SignIn withSignUp />`): an email without an account
+   goes straight to "create account → enter code" instead of showing *Couldn't find your account*.
 4. **API keys**: copy the **Publishable key** → `VITE_CLERK_PUBLISHABLE_KEY` *and* `CLERK_PUBLISHABLE_KEY`;
    copy the **Secret key** → `CLERK_SECRET_KEY`.
 5. (Optional, recommended) **Webhooks → Add endpoint**:
