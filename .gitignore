@@ -31,3 +31,7 @@ dist-ssr
 .dev.vars.*
 !.dev.vars.example
 .wrangler/
+
+# Rendered social-media video and audio (large binaries; the PNGs and copy are tracked)
+marketing/**/*.mp4
+marketing/**/*.wav

@@ -85,9 +85,8 @@ service and **where each value goes**. Do them in order; each step takes 5–10 
    before an external app can leave *Testing*. Google Auth Platform → Audience → **Publish app** → Confirm moves
    the app from *Testing* (only listed test users can sign in) to **In production** (any Google account). No
    verification is needed for the `openid`/`email`/`profile` scopes as long as the app has no logo and fewer
-   than ten authorised domains, so do not upload a logo on the Branding page. Status 17 Oct 2026: Branding is
-   complete and the publish dialog was reached; the final **Confirm** click is Harsha's to make, after which the
-   Audience page should read *In production*.
+   than ten authorised domains, so do not upload a logo on the Branding page. **Published 17 Oct 2026**: the
+   Audience page reads *In production*, so any Google account can sign in.
    Note: Google accounts managed by Family Link (most under-13s) usually cannot sign in to third-party apps, so
    students keep using the email code; Google sign-in is mainly for parents and teachers.
 
