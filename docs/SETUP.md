@@ -70,17 +70,24 @@ service and **where each value goes**. Do them in order; each step takes 5–10 
    works on the `pages.dev` address. The development instance still exists for experiments; `.dev.vars` and
    `.env.local` currently point at **production** so local runs share the real user base.
 7. Children & privacy: Clerk does not age-gate. For under-13 students, collect a **parent or teacher** email
-   rather than the child's, and say so on your sign-up page. Keep this in mind for your privacy notice.
+   rather than the child's. The site says so on its privacy page: <https://builders.ascent-i-tech.in/privacy>
+   (`src/pages/PrivacyPage.tsx`) lists what is stored, which services process it, and how to delete an account;
+   <https://builders.ascent-i-tech.in/terms> (`src/pages/TermsPage.tsx`) holds the short terms of use. Both are
+   linked from the footer. Update the *Last updated* date in `PrivacyPage.tsx` when you change either page.
 8. **Sign in with Google** (production, enabled 17 Oct 2026): Clerk → Configure → SSO connections → Google uses
    *custom credentials* from the Google Cloud project **Builders of Tomorrow** (ID `builders-of-tomorrow`, org
    `ascent-i-tech.in`): OAuth consent screen *External*, app name "Builders of Tomorrow", support/developer email
    `harsha@ascent-i-tech.in`, authorised domain `ascent-i-tech.in`; a *Web application* OAuth client with JavaScript
    origin `https://builders.ascent-i-tech.in` and redirect URI `https://clerk.ascent-i-tech.in/v1/oauth_callback`.
    The `<SignIn withSignUp />` / `<SignUp />` components show the "Continue with Google" button automatically.
-   The Google app is still in **Testing** status (Google Auth Platform → Audience): only listed test users
-   (currently `harsha@ascent-i-tech.in`) can finish a Google sign-in. Google only lets you click **Publish app**
-   once Branding has a privacy-policy URL, so add a `/privacy` page to the site first, enter it under Branding,
-   then publish; no verification is needed for the `openid`/`email`/`profile` scopes.
+   Branding also carries the privacy policy link `https://builders.ascent-i-tech.in/privacy` and the Terms of
+   Service link `https://builders.ascent-i-tech.in/terms` (added 17 Oct 2026); Google requires the privacy link
+   before an external app can leave *Testing*. Google Auth Platform → Audience → **Publish app** → Confirm moves
+   the app from *Testing* (only listed test users can sign in) to **In production** (any Google account). No
+   verification is needed for the `openid`/`email`/`profile` scopes as long as the app has no logo and fewer
+   than ten authorised domains, so do not upload a logo on the Branding page. Status 17 Oct 2026: Branding is
+   complete and the publish dialog was reached; the final **Confirm** click is Harsha's to make, after which the
+   Audience page should read *In production*.
    Note: Google accounts managed by Family Link (most under-13s) usually cannot sign in to third-party apps, so
    students keep using the email code; Google sign-in is mainly for parents and teachers.
 

@@ -1,3 +1,5 @@
+import { Link } from 'react-router'
+
 export function SiteFooter() {
   return (
     <footer className="no-print mt-16 border-t border-ink/5 bg-white/60">
@@ -13,8 +15,14 @@ export function SiteFooter() {
             Ascent Intelligent Technologies
           </a>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <span>Builders of Tomorrow · STEM workshops for curious kids</span>
+          <Link to="/privacy" className="font-bold text-ink underline underline-offset-2">
+            Privacy
+          </Link>
+          <Link to="/terms" className="font-bold text-ink underline underline-offset-2">
+            Terms
+          </Link>
         </div>
       </div>
     </footer>
