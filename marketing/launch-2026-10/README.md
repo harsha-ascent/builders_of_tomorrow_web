@@ -7,7 +7,7 @@ there is nothing to license).
 
 | File | Use |
 | --- | --- |
-| `instagram-reel.mp4` | Instagram Reel (1080 × 1920, 9:16, ~25 s, H.264 + AAC). Also fine as a LinkedIn video post. |
+| `instagram-reel.mp4` | Instagram Reel (1080 × 1920, 9:16, ~25 s, H.264 + AAC): title, home, design cycle, rocket, bridge build, bridge test, worksheets, end. Also fine as a LinkedIn video post. |
 | `instagram-reel-cover.png` | Reel cover / first frame (title card). |
 | `linkedin-banner-1200x627.png` | Image for the LinkedIn post (LinkedIn's link-preview ratio). |
 | `instagram-caption.md` | Reel caption with hashtags. |
