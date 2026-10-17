@@ -41,7 +41,7 @@ export function Slider({ label, emoji, value, min, max, step, display, hint, onC
           <span>{ends[1]}</span>
         </div>
       )}
-      {hint && <p className="mt-1 text-sm text-ink-soft">{hint}</p>}
+      {hint && <div className="mt-1 text-sm text-ink-soft">{hint}</div>}
     </div>
   )
 }

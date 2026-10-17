@@ -125,12 +125,27 @@ Without any keys the site runs in **guest mode**: everything is saved in the bro
 explain what is missing. `npm run preview:pages` builds and serves the whole site through Wrangler exactly as
 Cloudflare will.
 
-## 7. Checklist
+## 7. Checklist (status as of 17 Oct 2026)
 
-- [ ] GitHub: push `main`
-- [ ] Neon: project, pooled `DATABASE_URL`, tables created
-- [ ] Clerk: app, **email code on / password off**, keys copied, (webhook)
-- [ ] Resend: API key, domain verified, `RESEND_FROM`
-- [ ] Cloudflare Pages: repo connected, env vars + secrets, first deploy green
-- [ ] Cloudflare R2: bucket `builders-of-tomorrow-files`
-- [ ] Domain: `pages.dev` or `builders.ascent-i-tech.in`
+- [x] GitHub: `main` pushed (push access via a collaborator account on this Mac)
+- [x] Neon: project, pooled `DATABASE_URL`, tables created (`npm run db:migrate`, 2 migrations)
+- [x] Clerk: development instance, keys in place (webhook not configured yet; the app upserts users lazily)
+- [x] Resend: API key in place; sender still `onboarding@resend.dev` (verify `ascent-i-tech.in` to email anyone)
+- [x] Cloudflare Pages: project `builders-of-tomorrow-web` created with wrangler, secrets set, deployed by **direct upload**
+- [x] Cloudflare R2: bucket `builders-of-tomorrow-files` (bound as `FILES` by `wrangler.toml`)
+- [ ] Domain: `builders-of-tomorrow-web.pages.dev` for now; add `builders.ascent-i-tech.in` under Pages → Custom domains when ready
+- [ ] Clerk production instance + custom domain before real students sign up
+
+### Deploying updates
+
+The project was deployed with **direct upload**, not Git integration, so a new version ships with:
+
+```bash
+npm run deploy
+```
+
+(`npm run build` bakes `VITE_CLERK_PUBLISHABLE_KEY` from `.env.local`, then `wrangler pages deploy ./dist`.)
+To switch to automatic deploys on every push instead: Cloudflare dashboard → Workers & Pages →
+`builders-of-tomorrow-web` → Settings → Builds & deployments → **Connect to Git**, pick the GitHub repo, set
+build command `npm run build`, output `dist`, and add `NODE_VERSION=22` and `VITE_CLERK_PUBLISHABLE_KEY` as
+build variables. Runtime secrets already live on the project.
