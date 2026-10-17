@@ -38,6 +38,7 @@ export const shareRoutes = new Hono<AppEnv>()
     const resend = new Resend(c.env.RESEND_API_KEY)
     const { error } = await resend.emails.send({
       from: c.env.RESEND_FROM ?? 'Builders of Tomorrow <onboarding@resend.dev>',
+      ...(c.env.RESEND_REPLY_TO ? { replyTo: c.env.RESEND_REPLY_TO } : {}),
       to,
       subject: `🚀 ${launch.designName} flew ${r.maxHeightM.toFixed(0)} m high!`,
       html,

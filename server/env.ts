@@ -8,8 +8,10 @@ export interface Env {
   /** Comma-separated list of origins allowed to call the API with a session token, e.g. https://builders.example.com */
   AUTHORIZED_PARTIES?: string
   RESEND_API_KEY?: string
-  /** e.g. "Builders of Tomorrow <hello@ascent-i-tech.in>" */
+  /** e.g. "Builders of Tomorrow <hello@mail.ascent-i-tech.in>" (must be on a domain verified in Resend) */
   RESEND_FROM?: string
+  /** Where replies go, e.g. a real inbox. */
+  RESEND_REPLY_TO?: string
   APP_ORIGIN?: string
   /** Shared secret the digest cron Worker presents to POST /api/digest/run. */
   DIGEST_SECRET?: string

@@ -9,7 +9,9 @@ compatibility_flags = ["nodejs_compat"]
 # Cloudflare dashboard or with `npx wrangler pages secret put NAME`. Locally they live in .dev.vars.
 [vars]
 APP_ORIGIN = "https://builders-of-tomorrow-web.pages.dev"
-RESEND_FROM = "Builders of Tomorrow <onboarding@resend.dev>"
+RESEND_FROM = "Builders of Tomorrow <hello@mail.ascent-i-tech.in>"
+# Replies to the weekly summary and shared results land here.
+RESEND_REPLY_TO = "harsha@ascent-i-tech.in"
 
 # R2 bucket for student uploads. Create it first: Cloudflare → R2 → Create bucket → "builders-of-tomorrow-files".
 [[r2_buckets]]

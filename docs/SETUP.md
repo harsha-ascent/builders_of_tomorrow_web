@@ -130,7 +130,7 @@ Cloudflare will.
 - [x] GitHub: `main` pushed (push access via a collaborator account on this Mac)
 - [x] Neon: project, pooled `DATABASE_URL`, tables created (`npm run db:migrate`, 2 migrations)
 - [x] Clerk: development instance, keys in place (webhook not configured yet; the app upserts users lazily)
-- [x] Resend: API key in place; sender still `onboarding@resend.dev` (verify `ascent-i-tech.in` to email anyone)
+- [x] Resend: API key in place; sending domain `mail.ascent-i-tech.in` (DKIM TXT + two CNAMEs added in Squarespace DNS); sender `hello@mail.ascent-i-tech.in`, replies go to harsha@ascent-i-tech.in
 - [x] Cloudflare Pages: project `builders-of-tomorrow-web` created with wrangler, secrets set, deployed by **direct upload**
 - [x] Cloudflare R2: bucket `builders-of-tomorrow-files` (bound as `FILES` by `wrangler.toml`)
 - [ ] Domain: `builders-of-tomorrow-web.pages.dev` for now; add `builders.ascent-i-tech.in` under Pages → Custom domains when ready
@@ -146,7 +146,7 @@ turn it off under My Work → Weekly summary.
 - Secret: `DIGEST_SECRET` (random, in `.dev.vars`) is set on **both** the Pages project and the Worker.
 - Deploy the Worker: `npx wrangler deploy -c workers/digest-cron/wrangler.jsonc`
 - Dry run (no emails): `curl -X POST -H "Authorization: Bearer $DIGEST_SECRET" "https://builders-of-tomorrow-digest-cron.<account>.workers.dev/run?dryRun=1"`
-- Until `ascent-i-tech.in` is verified in Resend, only the Resend account owner's address can receive mail.
+- Sending domain: `mail.ascent-i-tech.in` (verified in Resend). The root domain's Google Workspace MX/SPF records were left untouched.
 
 ### Workshops are opt-in
 

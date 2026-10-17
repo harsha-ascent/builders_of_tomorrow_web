@@ -44,6 +44,7 @@ export const digestRoutes = new Hono<AppEnv>()
       }
       const { error } = await resend.emails.send({
         from: c.env.RESEND_FROM ?? 'Builders of Tomorrow <onboarding@resend.dev>',
+        ...(c.env.RESEND_REPLY_TO ? { replyTo: c.env.RESEND_REPLY_TO } : {}),
         to: u.email!,
         subject: digestSubject(stats, u.displayName),
         html: digestHtml(stats, { name: u.displayName, origin }),
