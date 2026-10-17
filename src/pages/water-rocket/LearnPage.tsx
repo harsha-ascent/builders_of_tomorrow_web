@@ -30,7 +30,11 @@ export default function LearnPage() {
       <WaterSection />
       <Glossary />
 
-      <div className="mt-12 flex flex-wrap justify-center gap-3">
+      <Callout emoji="🎓" title="Older builder? Want the real equations?" tone="grape" className="mt-12">
+        The <Link to="../math" className="font-bold underline">The Math</Link> tab shows the formulas behind thrust, pressure, drag and the flight path,
+        with the numbers for your own rocket filled in. Ages 12 and up.
+      </Callout>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
         <Link to="../design-cycle" className="btn-sky">
           Next: the Engineering Design Cycle →
         </Link>
@@ -109,9 +113,10 @@ function PressureSection() {
               <span className="font-display text-xl font-bold tabular-nums">{strokes * 10} psi</span>
             </div>
           </div>
-          <Callout emoji="⚠️" tone="rocket" title="Safety first">
-            Real bottles have a limit. Always stay under the pressure your grown-up helper sets, and never stand over a
-            pumped-up rocket.
+          <Callout emoji="⚠️" tone="rocket" title="Real-world pressure limits">
+            Most school launches use <strong>30–40 psi</strong>. Up to <strong>60 psi</strong> needs a grown-up, a launch cord and everyone
+            10 big steps back. Competitions cap drinks bottles around 75 psi. New bottles burst near 150 psi, but scratches, sunlight and
+            age weaken them, so never find the limit yourself.
           </Callout>
         </div>
       </div>

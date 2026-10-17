@@ -7,6 +7,7 @@ const TABS = [
   { to: 'launch', label: 'Launch', emoji: '🚀' },
   { to: 'worksheets', label: 'Worksheets', emoji: '📝' },
   { to: 'hangar', label: 'My Rockets', emoji: '🏠' },
+  { to: 'math', label: 'The Math', emoji: '🧮' },
 ]
 
 export default function WaterRocketLayout() {

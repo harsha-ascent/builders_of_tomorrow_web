@@ -12,7 +12,7 @@ export function SiteHeader() {
     <header className="no-print sticky top-0 z-40 border-b border-ink/5 bg-cream/80 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <Link to="/" className="flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="h-10 w-10 animate-float" />
+          <img src="/logo.svg" alt="" className="h-10 w-10 rounded-xl shadow-chunky-sm" />
           <div className="leading-tight">
             <div className="whitespace-nowrap font-display text-lg font-bold text-ink sm:text-xl">Builders of Tomorrow</div>
             <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-soft">by Ascent I-Tech</div>

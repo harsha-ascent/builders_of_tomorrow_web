@@ -122,9 +122,9 @@ export const WORKSHEETS: Worksheet[] = [
       {
         heading: 'Results',
         items: [
-          { key: 'p4', type: 'table', prompt: 'Record your launches.', columns: ['Pressure (psi)', 'Height (m)', 'Top speed (m/s)'], rows: 5, prefill: [['20', null, null], ['40', null, null], ['60', null, null], ['80', null, null], ['100', null, null]] },
+          { key: 'p4', type: 'table', prompt: 'Record your launches.', columns: ['Pressure (psi)', 'Height (m)', 'Top speed (m/s)'], rows: 5, prefill: [['20', null, null], ['30', null, null], ['40', null, null], ['50', null, null], ['60', null, null]] },
           { key: 'p5', type: 'text', prompt: 'Describe the pattern you see. Does each extra 20 psi add the same amount of height?', lines: 3 },
-          { key: 'p6', type: 'info', emoji: '⚠️', text: 'Safety: real fizzy-drink bottles should never be pumped above the pressure your grown-up helper sets (often 40–60 psi). More pressure is NOT always better — and never safe without a launch cord and a safe distance.' },
+          { key: 'p6', type: 'info', emoji: '⚠️', text: 'Safety: most school launches stay at or below 40 psi. Up to 60 psi needs a grown-up, a launch cord and a 10 m safety circle. Never pump a drinks bottle higher than that, even if the simulator lets you explore it.' },
         ],
       },
     ],
@@ -243,6 +243,67 @@ export const WORKSHEETS: Worksheet[] = [
           { key: 's1', type: 'checklist', prompt: 'Check each item:', options: ['A grown-up helper is with us', 'Everyone wears safety glasses', 'We use only fizzy-drink bottles (never water bottles or glass)', 'The bottle has no cracks or dents', 'The launch area is clear — 10 big steps back', 'Nobody stands over the rocket while pumping', 'We know the maximum safe pressure', 'We use a launch cord so nobody is near the rocket'] },
           { key: 's2', type: 'text', prompt: 'What will you shout before pulling the cord?', placeholder: '3… 2… 1… LAUNCH!' },
           { key: 's3', type: 'text', prompt: 'If a rocket does not launch after pulling the cord, what should you do? (Hint: wait, then let the grown-up release the pressure.)', lines: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'rocket-math',
+    title: 'Rocket Math Challenge',
+    emoji: '🧮',
+    level: 'Engineer',
+    minutes: 30,
+    summary: 'For ages 12+: use the real equations to predict your rocket, then check with the simulator.',
+    intro:
+      'Open “The Math” tab and keep a calculator handy. Work through each step for YOUR rocket, then compare with the simulator. Use g = 9.81 m/s², water density 1000 kg/m³ and 1 psi = 6895 Pa.',
+    cycleStep: 'plan',
+    sections: [
+      {
+        heading: 'Step 1: Pressure and nozzle',
+        emoji: '🫧',
+        items: [
+          { key: 'm1', type: 'number', prompt: 'My pump pressure', unit: 'psi' },
+          { key: 'm2', type: 'number', prompt: 'Convert to pascals: pressure × 6895', unit: 'Pa' },
+          { key: 'm3', type: 'number', prompt: 'Nozzle diameter d', unit: 'mm' },
+          { key: 'm4', type: 'number', prompt: 'Nozzle area A = π × (d ÷ 2)²', unit: 'mm²' },
+          { key: 'm5', type: 'info', emoji: '💡', text: 'To turn mm² into m², divide by 1 000 000. A 22 mm nozzle is about 380 mm² = 0.00038 m².' },
+        ],
+      },
+      {
+        heading: 'Step 2: How fast does the water leave?',
+        emoji: '💦',
+        items: [
+          { key: 'm6', type: 'number', prompt: 'Exit speed vₑ = √(2 × P ÷ 1000)', unit: 'm/s' },
+          { key: 'm7', type: 'number', prompt: 'Thrust F = 2 × A(m²) × P(Pa)', unit: 'N' },
+          { key: 'm8', type: 'choice', prompt: 'If you double the pressure, the exit speed becomes…', options: ['Double', 'About 1.41 times bigger (√2)', 'Four times bigger', 'The same'], answer: 1, explain: 'vₑ depends on the square root of the pressure, so doubling P multiplies vₑ by √2 ≈ 1.41.' },
+        ],
+      },
+      {
+        heading: 'Step 3: Acceleration at launch',
+        emoji: '🍎',
+        items: [
+          { key: 'm9', type: 'number', prompt: 'Rocket mass at launch = dry mass + water mass (1 ml of water = 1 g)', unit: 'kg' },
+          { key: 'm10', type: 'number', prompt: 'Acceleration a = F ÷ m − 9.81', unit: 'm/s²' },
+          { key: 'm11', type: 'number', prompt: 'How many g is that? (a ÷ 9.81)', unit: 'g' },
+        ],
+      },
+      {
+        heading: 'Step 4: Predict the flight',
+        emoji: '🌈',
+        items: [
+          { key: 'm12', type: 'number', prompt: 'Burnout speed v₀ from the simulator (The Math tab shows it)', unit: 'm/s' },
+          { key: 'm13', type: 'number', prompt: 'Launch angle θ', unit: '°' },
+          { key: 'm14', type: 'table', prompt: 'Work out the ideal (no air) numbers and compare with the simulator.', columns: ['Quantity', 'Formula', 'Ideal (no air)', 'Simulator'], rows: 3, prefill: [['Height H', 'v₀² sin²θ ÷ (2g)', null, null], ['Distance R', 'v₀² sin(2θ) ÷ g', null, null], ['Time T', '2 v₀ sinθ ÷ g', null, null]] },
+          { key: 'm15', type: 'text', prompt: 'The simulator numbers are smaller than the ideal ones. Which force explains the difference, and why does it matter more at high speed?', lines: 3 },
+        ],
+      },
+      {
+        heading: 'Think bigger',
+        emoji: '🧠',
+        items: [
+          { key: 'm16', type: 'choice', prompt: 'Halving the nozzle area halves the thrust. The rocket still flies almost as high because…', options: ['Gravity is weaker', 'The push lasts about twice as long, so the total impulse is similar', 'Water gets lighter', 'Drag disappears'], answer: 1, explain: 'Impulse = force × time. A smaller nozzle gives a smaller force for a longer time.' },
+          { key: 'm17', type: 'text', prompt: 'Explain in your own words why 45° gives the longest throw when there is no air, and why a slightly lower angle wins when there is.', lines: 4 },
+          { key: 'm18', type: 'rating', prompt: 'How confident are you with these equations now?', max: 5 },
         ],
       },
     ],

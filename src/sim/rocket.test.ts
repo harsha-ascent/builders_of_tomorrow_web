@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_DESIGN } from './presets'
-import { sampleAt, simulateLaunch, sweep } from './rocket'
+import { pressureZone, sampleAt, simulateLaunch, sweep } from './rocket'
 
 const base = { ...DEFAULT_DESIGN, launchAngleDeg: 90 }
 
 describe('simulateLaunch', () => {
-  it('flies a typical 2 L rocket to a believable height', () => {
+  it('flies a typical 2 L school rocket (40 psi) to a believable height', () => {
     const r = simulateLaunch(base)
+    expect(base.pressurePsi).toBe(40)
     expect(r.liftedOff).toBe(true)
-    expect(r.maxHeightM).toBeGreaterThan(15)
-    expect(r.maxHeightM).toBeLessThan(90)
+    // Real 2 L rockets at 40 psi usually reach 20-40 m.
+    expect(r.maxHeightM).toBeGreaterThan(20)
+    expect(r.maxHeightM).toBeLessThan(45)
     expect(r.flightTimeS).toBeGreaterThan(3)
     expect(r.flightTimeS).toBeLessThan(15)
     expect(r.thrustTimeS).toBeGreaterThan(0.03)
@@ -18,10 +20,30 @@ describe('simulateLaunch', () => {
     expect(r.samples.at(-1)?.y).toBe(0)
   })
 
-  it('goes higher with more pressure', () => {
+  it('goes higher with more pressure, within real-world ranges', () => {
     const low = simulateLaunch({ ...base, pressurePsi: 40 })
-    const high = simulateLaunch({ ...base, pressurePsi: 80 })
-    expect(high.maxHeightM).toBeGreaterThan(low.maxHeightM)
+    const mid = simulateLaunch({ ...base, pressurePsi: 60 })
+    const high = simulateLaunch({ ...base, pressurePsi: 75 })
+    expect(mid.maxHeightM).toBeGreaterThan(low.maxHeightM)
+    expect(high.maxHeightM).toBeGreaterThan(mid.maxHeightM)
+    // Well-built 2 L rockets at 60 psi: roughly 30-55 m; competition rockets at 75 psi: 40-65 m.
+    expect(mid.maxHeightM).toBeGreaterThan(30)
+    expect(mid.maxHeightM).toBeLessThan(55)
+    expect(high.maxHeightM).toBeLessThan(65)
+  })
+
+  it('an air-only launch flies, but much lower than with water', () => {
+    const air = simulateLaunch({ ...base, waterFraction: 0, pressurePsi: 60 })
+    const water = simulateLaunch({ ...base, waterFraction: 0.35, pressurePsi: 60 })
+    expect(air.liftedOff).toBe(true)
+    expect(air.maxHeightM).toBeLessThan(water.maxHeightM * 0.6)
+  })
+
+  it('pressure zones match the safety guidance', () => {
+    expect(pressureZone(30).zone).toBe('green')
+    expect(pressureZone(40).zone).toBe('green')
+    expect(pressureZone(50).zone).toBe('amber')
+    expect(pressureZone(70).zone).toBe('red')
   })
 
   it('has a sweet spot for water: some is better than none or nearly full', () => {

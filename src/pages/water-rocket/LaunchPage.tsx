@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { LaunchRecord, LaunchResult, TrajectorySample } from '../../../shared/types'
 import { Page } from '../../components/layout/Page'
+import { AssumptionsPanel } from '../../components/AssumptionsPanel'
+import { PressureZoneHint } from '../../components/PressureZoneHint'
 import { Callout } from '../../components/ui/Callout'
 import { Slider } from '../../components/ui/Slider'
 import { StatTile } from '../../components/ui/StatTile'
@@ -277,6 +279,7 @@ export default function LaunchPage() {
                   The push from the nozzle was weaker than the rocket’s weight. Try less water, more pressure, a wider nozzle or a lighter rocket.
                 </Callout>
               )}
+              <AssumptionsPanel className="mt-4" />
               {target != null && verdict != null && (
                 <Callout emoji={verdict <= TARGET_TOLERANCE_M ? '🎯' : '📏'} tone={verdict <= TARGET_TOLERANCE_M ? 'grass' : 'sun'} className="mt-4" title={verdict <= TARGET_TOLERANCE_M ? 'BULLSEYE! You hit the target!' : `Missed by ${fmt.m(verdict)}`}>
                   {verdict <= TARGET_TOLERANCE_M
@@ -341,6 +344,7 @@ export default function LaunchPage() {
               step={LIMITS.pressurePsi.step}
               display={fmt.psi(design.pressurePsi)}
               onChange={(v) => update({ pressurePsi: v })}
+              hint={<PressureZoneHint psi={design.pressurePsi} />}
             />
             <Slider
               label="Angle"

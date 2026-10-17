@@ -42,10 +42,49 @@ export function bottleSpec(volumeL: number): BottleSpec {
   return BOTTLES.find((b) => Math.abs(b.volumeL - volumeL) < 1e-6) ?? BOTTLES[3]
 }
 
+/**
+ * Drag coefficients for a kid-built rocket. Textbook streamlined shapes reach 0.3; real bottle rockets with
+ * taped-on fins measure closer to 0.35-0.5, so these are deliberately not the theoretical best.
+ */
 export const NOSE_CD: Record<NoseShape, number> = {
-  pointy: 0.3,
-  round: 0.42,
-  flat: 0.75,
+  pointy: 0.4,
+  round: 0.5,
+  flat: 0.85,
+}
+
+/** Nozzle discharge coefficient: real necks squeeze the jet a little (0.8 ragged … 0.98 smooth). */
+export const NOZZLE_DISCHARGE = 0.95
+
+/** Real-world pressure guidance (psi, gauge) shown next to every pressure control. */
+export const SAFETY = {
+  /** Typical limit for school and family launches. */
+  schoolMaxPsi: 40,
+  /** Only with an adult, a launch cord and everyone 10 m back. */
+  supervisedMaxPsi: 60,
+  /** Common competition cap for 2 L drinks bottles. */
+  competitionMaxPsi: 75,
+  /** New fizzy-drink bottles burst somewhere around here; scratches, heat and age lower it a lot. */
+  typicalBurstPsi: 150,
+} as const
+
+export type PressureZone = 'green' | 'amber' | 'red'
+
+export function pressureZone(psi: number): { zone: PressureZone; label: string; advice: string } {
+  if (psi <= SAFETY.schoolMaxPsi) {
+    return { zone: 'green', label: 'School-safe', advice: `Up to ${SAFETY.schoolMaxPsi} psi is what most school launches use.` }
+  }
+  if (psi <= SAFETY.supervisedMaxPsi) {
+    return {
+      zone: 'amber',
+      label: 'Adult + launch cord',
+      advice: `${SAFETY.schoolMaxPsi}–${SAFETY.supervisedMaxPsi} psi: only with a grown-up, a launch cord and everyone 10 big steps back.`,
+    }
+  }
+  return {
+    zone: 'red',
+    label: 'Simulator only',
+    advice: `Above ${SAFETY.supervisedMaxPsi} psi is for competition rockets with inspected bottles. Great to explore here, not in the garden.`,
+  }
 }
 
 export const NOZZLES = [
@@ -56,7 +95,7 @@ export const NOZZLES = [
 
 export const LIMITS = {
   waterFraction: { min: 0, max: 0.8, step: 0.05 },
-  pressurePsi: { min: 10, max: 100, step: 5 },
+  pressurePsi: { min: 10, max: 80, step: 5 },
   launchAngleDeg: { min: 20, max: 90, step: 5 },
   dryMassG: { min: 30, max: 400, step: 10 },
 } as const
@@ -97,7 +136,7 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
   let Vw = waterFraction * V
   const Va0 = Math.max(V - Vw, 1e-6)
   const p0 = pAtm + psiToPa(clamp(design.pressurePsi, 0, 200))
-  const An = Math.PI * (design.nozzleDiameterMm / 2000) ** 2 // nozzle area m²
+  const An = NOZZLE_DISCHARGE * Math.PI * (design.nozzleDiameterMm / 2000) ** 2 // effective nozzle area m²
   const Af = Math.PI * (spec.diameterM / 2) ** 2 // frontal area m²
   const Cd = dragCoefficient(design)
   const mDry = clamp(design.dryMassG, 1, 5000) / 1000
@@ -112,6 +151,8 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
   let t = 0
   let phase: FlightPhase = 'thrust'
   let mAir = (p0 * Va0) / (rAir * tempK) // kg of air in the bottle
+  // The air cools as it expands (adiabatic). Once the water is gone it keeps roughly this temperature.
+  let tAir = tempK
   let pressure = p0
   let liftedOff = false
 
@@ -156,9 +197,10 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
       const Va = V - Vw
       pressure = p0 * (Va0 / Va) ** gamma
       if (Vw <= 1e-9) {
-        // Water is gone; whatever air is left now rushes out.
+        // Water is gone; whatever air is left now rushes out, having cooled while it expanded.
         Vw = 0
-        mAir = (pressure * V) / (rAir * tempK)
+        tAir = tempK * (Va0 / V) ** (gamma - 1)
+        mAir = (pressure * V) / (rAir * tAir)
         phase = 'air'
       } else if (pressure <= pAtm) {
         phase = 'coast'
@@ -170,7 +212,7 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
     }
     if (phase === 'air') {
       const rhoIn = mAir / V
-      pressure = rhoIn * rAir * tempK
+      pressure = rhoIn * rAir * tAir
       const ratio = pressure / pAtm
       if (ratio <= 1.002 || mAir <= 0) {
         phase = 'coast'
@@ -184,8 +226,8 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
         if (ratio > 1.893) {
           // Choked flow: the nozzle is at the speed of sound.
           const k = gamma
-          mdot = An * pressure * Math.sqrt(k / (rAir * tempK)) * (2 / (k + 1)) ** ((k + 1) / (2 * (k - 1)))
-          const tStar = (tempK * 2) / (k + 1)
+          mdot = An * pressure * Math.sqrt(k / (rAir * tAir)) * (2 / (k + 1)) ** ((k + 1) / (2 * (k - 1)))
+          const tStar = (tAir * 2) / (k + 1)
           ve = Math.sqrt(k * rAir * tStar)
           pExit = pressure * (2 / (k + 1)) ** (k / (k - 1))
         } else {
@@ -196,10 +238,6 @@ export function simulateLaunch(design: RocketDesign, opts: SimOptions = {}): Lau
         mAir = Math.max(mAir - mdot * dt, 0)
       }
     }
-    if (phase === 'thrust' && Vw <= 0) {
-      // handled next step
-    }
-
     // ---- Forces -----------------------------------------------------------
     const drag = 0.5 * rhoAir * Cd * Af * speed * speed
     const dragX = speed > 0 ? (-drag * vx) / speed : 0

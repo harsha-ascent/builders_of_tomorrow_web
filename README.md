@@ -17,7 +17,13 @@ This is the starter: the **Water Rocket Lab**. More workshops plug into the same
 The simulator (`src/sim/rocket.ts`) is a real physics model: adiabatic air expansion, Bernoulli water exhaust,
 choked air flow after the water runs out, drag, and a launcher that holds the rocket until thrust beats gravity.
 Tests in `src/sim/rocket.test.ts` pin down the behaviour kids are meant to discover (sweet spot for water,
-45° for distance, pointy noses, and so on).
+45° for distance, pointy noses, and so on) and keep the numbers in real-world ranges: a 2 L school rocket at
+40 psi reaches roughly 20–40 m, a good one at 60 psi 30–55 m.
+
+**Realism and safety.** Pressures are real gauge pressures. The default is 40 psi (typical school limit); the UI
+marks 40–60 psi as "adult + launch cord" and above 60 psi as "simulator only". Every modelling assumption
+(drag coefficients, nozzle factor 0.95, adiabatic air, no launch-tube boost, perfect stability, ±25 % accuracy)
+is listed in `src/sim/assumptions.ts` and shown on the Build, Launch and Math pages.
 
 ## Stack
 

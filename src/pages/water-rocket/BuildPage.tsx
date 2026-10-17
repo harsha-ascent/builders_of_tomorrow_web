@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Page } from '../../components/layout/Page'
+import { AssumptionsPanel } from '../../components/AssumptionsPanel'
+import { PressureZoneHint } from '../../components/PressureZoneHint'
 import { Callout } from '../../components/ui/Callout'
 import { ColorSwatches } from '../../components/ui/ColorSwatches'
 import { LazyMount } from '../../components/ui/LazyMount'
@@ -174,7 +176,7 @@ export default function BuildPage() {
               display={`${fmt.psi(design.pressurePsi)} · ${fmt.kpa(pressureKPa)}`}
               ends={['Gentle', 'Maximum']}
               onChange={(v) => update({ pressurePsi: v })}
-              hint={design.pressurePsi > 70 ? '⚠️ Above 70 psi is only for the simulator. Real bottles need a grown-up and a lower limit.' : undefined}
+              hint={<PressureZoneHint psi={design.pressurePsi} />}
             />
             <Slider
               label="Launch angle"
@@ -191,7 +193,7 @@ export default function BuildPage() {
 
           <div className="card">
             <h2 className="font-display text-2xl font-bold">🔮 Prediction</h2>
-            <p className="text-sm text-ink-soft">The simulator’s best guess for this setup. Launch to see it fly!</p>
+            <p className="text-sm text-ink-soft">The simulator’s best guess for this setup (real flights land within about ±25 %). Launch to see it fly!</p>
             {prediction.liftedOff ? (
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <StatTile emoji="⬆️" label="Height" value={fmt.m(prediction.maxHeightM, 0)} tone="sky" />
@@ -204,6 +206,7 @@ export default function BuildPage() {
                 The push from the nozzle is weaker than the rocket’s weight. Try less water, more pressure, a wider nozzle or a lighter rocket.
               </Callout>
             )}
+            <AssumptionsPanel className="mt-4" />
             <div className="mt-4 flex flex-wrap gap-3">
               <button type="button" className="btn-primary flex-1 text-lg" onClick={() => navigate('../launch')}>
                 🚀 Take it to the launch pad

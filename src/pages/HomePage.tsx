@@ -38,7 +38,9 @@ export default function HomePage() {
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {WORKSHOPS.map((w) => (
             <article key={w.slug} className={`card relative flex flex-col overflow-hidden ${w.status === 'soon' ? 'opacity-80' : ''}`}>
-              <div className={`-mx-5 -mt-5 mb-4 bg-gradient-to-br ${w.accent} px-5 py-6 text-6xl`}>{w.emoji}</div>
+              <div className={`-mx-5 -mt-5 mb-4 flex h-28 items-center bg-gradient-to-br ${w.accent} px-5 text-6xl`}>
+                {w.slug === 'water-rocket' ? <img src="/rocket.svg" alt="" className="h-20 w-20 animate-float drop-shadow" /> : w.emoji}
+              </div>
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-display text-xl font-bold text-ink">{w.title}</h3>
                 {w.status === 'soon' ? <span className="chip shrink-0">Soon</span> : <span className="chip shrink-0 bg-grass/30 text-ink">Live</span>}

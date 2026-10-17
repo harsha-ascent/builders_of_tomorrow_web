@@ -11,6 +11,7 @@ const MyWorkPage = lazy(() => import('./pages/MyWorkPage'))
 const WaterRocketLayout = lazy(() => import('./pages/water-rocket/WaterRocketLayout'))
 const LearnPage = lazy(() => import('./pages/water-rocket/LearnPage'))
 const DesignCyclePage = lazy(() => import('./pages/water-rocket/DesignCyclePage'))
+const MathPage = lazy(() => import('./pages/water-rocket/MathPage'))
 const BuildPage = lazy(() => import('./pages/water-rocket/BuildPage'))
 const LaunchPage = lazy(() => import('./pages/water-rocket/LaunchPage'))
 const WorksheetsPage = lazy(() => import('./pages/water-rocket/WorksheetsPage'))
@@ -41,6 +42,7 @@ export default function App() {
               <Route index element={<Navigate to="learn" replace />} />
               <Route path="learn" element={<LearnPage />} />
               <Route path="design-cycle" element={<DesignCyclePage />} />
+              <Route path="math" element={<MathPage />} />
               <Route path="build" element={<BuildPage />} />
               <Route path="launch" element={<LaunchPage />} />
               <Route path="worksheets" element={<WorksheetsPage />} />
