@@ -12,7 +12,8 @@ export function BarChart({ data, yLabel, color = '#4cc9f0', digits = 0, highligh
   const padB = 44
   const padT = 24
   const max = Math.max(1e-9, ...data.map((d) => d.value))
-  const nice = max > 10 ? Math.ceil(max / 10) * 10 : max > 1 ? Math.ceil(max) : Math.ceil(max * 10) / 10
+  // Counts (digits = 0) always get a 0–1 axis at least, so an empty chart does not show 0.0 / 0.1 ticks.
+  const nice = max > 10 ? Math.ceil(max / 10) * 10 : max > 1 ? Math.ceil(max) : digits === 0 ? 1 : Math.ceil(max * 10) / 10
   const bw = (W - padL - 12) / Math.max(data.length, 1)
   const yOf = (v: number) => padT + (H - padT - padB) * (1 - v / nice)
   return (
@@ -32,6 +33,7 @@ export function BarChart({ data, yLabel, color = '#4cc9f0', digits = 0, highligh
         const hi = highlight !== undefined && d.label === highlight
         return (
           <g key={d.label}>
+            <title>{`${d.label}: ${d.value.toFixed(digits)}`}</title>
             <rect x={x} y={y} width={w} height={Math.max(0, H - padB - y)} rx={8} fill={d.color ?? (hi ? '#ff6b6b' : color)} opacity={hi || !highlight ? 1 : 0.6} />
             <text x={x + w / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight={800} fill="#1e2a4a">
               {d.value.toFixed(digits)}

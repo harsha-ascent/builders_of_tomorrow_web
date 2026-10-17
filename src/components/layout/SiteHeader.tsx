@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router'
 import { authEnabled } from '../../auth/AppAuth'
 import { WORKSHOPS } from '../../content/workshops'
 import { useEnrollments } from '../../lib/useEnrollments'
+import { useMe } from '../../lib/useMe'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 font-display text-base font-semibold transition ${
@@ -11,6 +12,7 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
 
 export function SiteHeader() {
   const { enrolled } = useEnrollments()
+  const isAdmin = useMe()?.isAdmin ?? false
   const joined = WORKSHOPS.filter((w) => w.status === 'live' && enrolled.includes(w.slug))
   return (
     <header className="no-print sticky top-0 z-40 border-b border-ink/5 bg-cream/80 backdrop-blur">
@@ -37,6 +39,11 @@ export function SiteHeader() {
           <NavLink to="/me" className={navClass}>
             My Work
           </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" className={navClass}>
+              Admin
+            </NavLink>
+          )}
         </nav>
         <div className="flex items-center gap-2">
           {authEnabled ? (
@@ -72,6 +79,11 @@ export function SiteHeader() {
         <NavLink to="/me" className={navClass}>
           My Work
         </NavLink>
+        {isAdmin && (
+          <NavLink to="/admin" className={navClass}>
+            Admin
+          </NavLink>
+        )}
       </nav>
     </header>
   )

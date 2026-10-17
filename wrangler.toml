@@ -12,6 +12,8 @@ APP_ORIGIN = "https://builders.ascent-i-tech.in"
 RESEND_FROM = "Builders of Tomorrow <hello@mail.ascent-i-tech.in>"
 # Replies to the weekly summary and shared results land here.
 RESEND_REPLY_TO = "harsha@ascent-i-tech.in"
+# Who may open /admin (registered users + analytics). Comma-separated, case-insensitive.
+ADMIN_EMAILS = "harsha@ascent-i-tech.in"
 
 # R2 bucket for student uploads. Create it first: Cloudflare → R2 → Create bucket → "builders-of-tomorrow-files".
 [[r2_buckets]]

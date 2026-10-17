@@ -139,6 +139,69 @@ export interface MeResponse {
   role: 'student' | 'teacher' | 'parent' | 'admin'
   digestOptIn: boolean
   lastDigestAt: string | null
+  /** True when the signed-in email is on the server's ADMIN_EMAILS list (the site owner). */
+  isAdmin: boolean
+}
+
+// --- Admin (site owner only) -------------------------------------------------
+
+/** One registered learner as shown on the admin page. */
+export interface AdminUser {
+  id: string
+  email: string | null
+  displayName: string | null
+  role: MeResponse['role']
+  digestOptIn: boolean
+  lastDigestAt: string | null
+  createdAt: string
+  /** Workshop slugs the learner has joined. */
+  workshops: string[]
+  /** Saved designs per workshop slug. */
+  designs: Record<string, number>
+  /** Water-rocket launches logged. */
+  launches: number
+  /** Bridge load tests logged. */
+  bridgeTests: number
+  /** Worksheets with at least one saved answer. */
+  worksheets: number
+  files: number
+  filesBytes: number
+  /** Most recent save, launch, test or upload. */
+  lastActiveAt: string | null
+}
+
+export interface AdminUsersResponse {
+  users: AdminUser[]
+  total: number
+}
+
+export interface AdminWorkshopStats {
+  joined: number
+  designs: number
+  /** Launches (water rocket) or load tests (bridge builder). */
+  runs: number
+  runs7d: number
+}
+
+export interface AdminStats {
+  generatedAt: string
+  users: {
+    total: number
+    withEmail: number
+    new7d: number
+    new30d: number
+    /** Learners who saved, launched, tested or uploaded something in the last 7 days. */
+    active7d: number
+    digestOn: number
+    roles: Record<string, number>
+  }
+  workshops: Record<string, AdminWorkshopStats>
+  worksheets: { saved: number; learners: number; saved7d: number }
+  files: { count: number; bytes: number }
+  /** Last 12 weeks, oldest first; weekStart is an ISO date (Monday). */
+  signupsByWeek: { weekStart: string; count: number }[]
+  /** Last 14 days, oldest first; day is an ISO date. */
+  activityByDay: { day: string; launches: number; tests: number; worksheets: number }[]
 }
 
 /** A workshop the learner has joined. */

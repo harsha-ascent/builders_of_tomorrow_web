@@ -1,13 +1,14 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import type { MeResponse } from '../../shared/types'
+import { isAdminEmail } from '../admin'
 import { clerkFor, requireAuth } from '../auth'
 import type { AppEnv } from '../context'
 import { users } from '../db/schema'
 
 type Row = typeof users.$inferSelect
 
-function toMe(row: Row): MeResponse {
+function toMe(row: Row, env: { ADMIN_EMAILS?: string }): MeResponse {
   return {
     id: row.id,
     email: row.email,
@@ -15,6 +16,7 @@ function toMe(row: Row): MeResponse {
     role: (row.role as MeResponse['role']) ?? 'student',
     digestOptIn: row.digestOptIn,
     lastDigestAt: row.lastDigestAt ? row.lastDigestAt.toISOString() : null,
+    isAdmin: isAdminEmail(row.email, env),
   }
 }
 
@@ -37,7 +39,7 @@ export const meRoutes = new Hono<AppEnv>()
       .values({ id: userId, email, displayName })
       .onConflictDoUpdate({ target: users.id, set: { email, displayName, updatedAt: new Date() } })
       .returning()
-    return c.json(toMe(row))
+    return c.json(toMe(row, c.env))
   })
   .put('/preferences', async (c) => {
     const { userId } = c.get('auth')
@@ -50,5 +52,5 @@ export const meRoutes = new Hono<AppEnv>()
       .where(eq(users.id, userId))
       .returning()
     if (!row) return c.json({ error: 'Not found' }, 404)
-    return c.json(toMe(row))
+    return c.json(toMe(row, c.env))
   })

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { AppEnv } from './context'
 import { getDb } from './db/client'
+import { adminRoutes } from './routes/admin'
 import { designsRoutes } from './routes/designs'
 import { digestRoutes } from './routes/digest'
 import { enrollmentsRoutes } from './routes/enrollments'
@@ -47,6 +48,7 @@ app.route('/share', shareRoutes)
 app.route('/webhooks', webhooksRoutes)
 app.route('/digest', digestRoutes)
 app.route('/enrollments', enrollmentsRoutes)
+app.route('/admin', adminRoutes)
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 app.onError((err, c) => {

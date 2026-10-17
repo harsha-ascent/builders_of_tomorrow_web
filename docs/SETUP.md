@@ -166,6 +166,7 @@ Cloudflare will.
 - [x] Clerk production instance + custom domain
 - [x] DMARC: `_dmarc` TXT `v=DMARC1; p=none;` on the root domain (monitor-only policy; tighten to
   `p=quarantine` later once Google Workspace, Resend and Clerk mail all pass).
+- [x] Privacy and terms pages (`/privacy`, `/terms`), admin page (`/admin`, owner only) — 17 Oct 2026.
 
 ### DNS records added for this project (Squarespace Domains → ascent-i-tech.in → DNS → Custom records)
 
@@ -194,6 +195,20 @@ turn it off under My Work → Weekly summary.
 - Deploy the Worker: `npx wrangler deploy -c workers/digest-cron/wrangler.jsonc`
 - Dry run (no emails): `curl -X POST -H "Authorization: Bearer $DIGEST_SECRET" "https://builders-of-tomorrow-digest-cron.<account>.workers.dev/run?dryRun=1"`
 - Sending domain: `mail.ascent-i-tech.in` (verified in Resend). The root domain's Google Workspace MX/SPF records were left untouched.
+
+### Admin page (site owner only)
+
+<https://builders.ascent-i-tech.in/admin> shows every registered learner (email, name, role, joined date, workshops
+joined, designs, launches, bridge tests, worksheets, uploads, last activity, weekly-email setting, CSV export) plus
+basic analytics: sign-ups per week, activity per day, totals per workshop. The page is only a view; access is
+enforced by the API. `GET /api/admin/stats` and `GET /api/admin/users` run `requireAuth` and then `requireAdmin`
+(`server/auth.ts`), which asks Clerk for the signed-in account's **verified primary email** on every call and
+compares it, case-insensitively, with the comma-separated `ADMIN_EMAILS` variable (`wrangler.toml` `[vars]`,
+currently `harsha@ascent-i-tech.in`; the code falls back to that address when the variable is unset). Everyone
+else gets `403`, and the "Admin" link in the header only appears when `/api/me` reports `isAdmin: true`. To add a
+second admin, append their email to `ADMIN_EMAILS` and redeploy. Queries are read-only; `server/admin.test.ts`
+covers the allow-list and `server/admin.db.test.ts` is a read-only smoke test that runs only when `DATABASE_URL`
+is set.
 
 ### Workshops are opt-in
 

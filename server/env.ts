@@ -13,6 +13,8 @@ export interface Env {
   /** Where replies go, e.g. a real inbox. */
   RESEND_REPLY_TO?: string
   APP_ORIGIN?: string
+  /** Comma-separated emails allowed to open /admin and call /api/admin/*. Defaults to the site owner. */
+  ADMIN_EMAILS?: string
   /** Shared secret the digest cron Worker presents to POST /api/digest/run. */
   DIGEST_SECRET?: string
   /** R2 bucket binding for student uploads. */
