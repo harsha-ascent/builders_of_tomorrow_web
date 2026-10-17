@@ -60,9 +60,13 @@ service and **where each value goes**. Do them in order; each step takes 5–10 
    URL `https://<your-domain>/api/webhooks/clerk`, events `user.created`, `user.updated`, `user.deleted`.
    Copy the **Signing secret** → `CLERK_WEBHOOK_SIGNING_SECRET`. Without it the app still works: users are
    created in the database the first time they save something.
-6. Going live: Clerk's **development** instance works on `*.pages.dev` straight away. A **production** instance
-   needs a domain you control (e.g. `builders.ascent-i-tech.in`) because Clerk asks you to add a few DNS
-   records. Do this when you are ready for real students.
+6. Going live (**done 17 Oct 2026**): the **production** instance is live on the root domain `ascent-i-tech.in`.
+   Clerk's front-end API answers at `clerk.ascent-i-tech.in`, the hosted account pages at
+   `accounts.ascent-i-tech.in`, and sign-in codes are sent from `clkmail.ascent-i-tech.in` (five CNAMEs, all
+   verified in Clerk → Configure → Domains). Production keys are `pk_live_…` / `sk_live_…` (Clerk → API keys on
+   the *Production* instance). The production instance only works on `*.ascent-i-tech.in`, so sign-in no longer
+   works on the `pages.dev` address. The development instance still exists for experiments; `.dev.vars` and
+   `.env.local` currently point at **production** so local runs share the real user base.
 7. Children & privacy: Clerk does not age-gate. For under-13 students, collect a **parent or teacher** email
    rather than the child's, and say so on your sign-up page. Keep this in mind for your privacy notice.
 
@@ -102,10 +106,10 @@ service and **where each value goes**. Do them in order; each step takes 5–10 
 ### 5c. Domain
 Free options, best first:
 - **`<project>.pages.dev`** — automatic, HTTPS, zero setup. Fine for a pilot.
-- **A sub-domain of your own domain**, e.g. `builders.ascent-i-tech.in` — free, looks professional, and is
-  what Clerk production and Resend will want anyway. In Pages → **Custom domains → Set up a domain** and add
-  the CNAME it shows at your DNS provider (or move `ascent-i-tech.in` DNS to Cloudflare's free plan and it is
-  one click).
+- **A sub-domain of your own domain** — **this is what is live**: <https://builders.ascent-i-tech.in>.
+  Pages → **Custom domains → Set up a domain**, then a `CNAME builders → builders-of-tomorrow-web.pages.dev` at
+  the DNS provider. Cloudflare issues the certificate itself (status "Active" in the Pages project). The
+  `pages.dev` address keeps serving the same deployment, but sign-in only works on the custom domain.
 - Truly free registrable domains (Freenom `.tk` etc.) have shut down or are unreliable; avoid them.
 
 ---
@@ -129,12 +133,34 @@ Cloudflare will.
 
 - [x] GitHub: `main` pushed (push access via a collaborator account on this Mac)
 - [x] Neon: project, pooled `DATABASE_URL`, tables created (`npm run db:migrate`, 2 migrations)
-- [x] Clerk: development instance, keys in place (webhook not configured yet; the app upserts users lazily)
+- [x] Clerk: **production** instance on `ascent-i-tech.in` (email code only; password, phone, Apple and Google
+  off), `pk_live`/`sk_live` on the Pages project; DNS verified, certificates issued by Clerk
+  (webhook not configured; the app upserts users lazily). Accounts created on the old development instance
+  do not carry over — students sign up again.
 - [x] Resend: API key in place; sending domain `mail.ascent-i-tech.in` (DKIM TXT + two CNAMEs added in Squarespace DNS); sender `hello@mail.ascent-i-tech.in`, replies go to harsha@ascent-i-tech.in
 - [x] Cloudflare Pages: project `builders-of-tomorrow-web` created with wrangler, secrets set, deployed by **direct upload**
 - [x] Cloudflare R2: bucket `builders-of-tomorrow-files` (bound as `FILES` by `wrangler.toml`)
-- [ ] Domain: `builders-of-tomorrow-web.pages.dev` for now; add `builders.ascent-i-tech.in` under Pages → Custom domains when ready
-- [ ] Clerk production instance + custom domain before real students sign up
+- [x] Domain: <https://builders.ascent-i-tech.in> (Pages custom domain, active). `APP_ORIGIN` in `wrangler.toml`
+  and in the digest Worker point at it.
+- [x] Clerk production instance + custom domain
+- [x] DMARC: `_dmarc` TXT `v=DMARC1; p=none;` on the root domain (monitor-only policy; tighten to
+  `p=quarantine` later once Google Workspace, Resend and Clerk mail all pass).
+
+### DNS records added for this project (Squarespace Domains → ascent-i-tech.in → DNS → Custom records)
+
+The zone is hosted by Google (Squarespace Domains); the existing Google Workspace MX/SPF/DKIM records were not
+touched. Squarespace asks for your authenticator code before every editing session.
+
+| Purpose | Type | Name | Data |
+| --- | --- | --- | --- |
+| Site (Cloudflare Pages) | CNAME | `builders` | `builders-of-tomorrow-web.pages.dev` |
+| Clerk front-end API | CNAME | `clerk` | `frontend-api.clerk.services` |
+| Clerk account portal | CNAME | `accounts` | `accounts.clerk.services` |
+| Clerk sign-in emails | CNAME | `clkmail` | `mail.xnya4tm470ld.clerk.services` |
+| Clerk DKIM 1 | CNAME | `clk._domainkey` | `dkim1.xnya4tm470ld.clerk.services` |
+| Clerk DKIM 2 | CNAME | `clk2._domainkey` | `dkim2.xnya4tm470ld.clerk.services` |
+| Resend sending domain | as listed in Resend → Domains → `mail.ascent-i-tech.in` | | DKIM TXT + two CNAMEs |
+| DMARC (root) | TXT | `_dmarc` | `v=DMARC1; p=none;` |
 
 ### Weekly summary email (digest)
 
@@ -162,7 +188,9 @@ The project was deployed with **direct upload**, not Git integration, so a new v
 npm run deploy
 ```
 
-(`npm run build` bakes `VITE_CLERK_PUBLISHABLE_KEY` from `.env.local`, then `wrangler pages deploy ./dist`.)
+(`npm run build` bakes `VITE_CLERK_PUBLISHABLE_KEY` from `.env.production` / `.env.local` — both hold the
+`pk_live` key — then `wrangler pages deploy ./dist`.) `[vars]` from `wrangler.toml` are uploaded with every
+deploy; secrets stay on the project. If `APP_ORIGIN` changes, also redeploy the digest Worker.
 To switch to automatic deploys on every push instead: Cloudflare dashboard → Workers & Pages →
 `builders-of-tomorrow-web` → Settings → Builds & deployments → **Connect to Git**, pick the GitHub repo, set
 build command `npm run build`, output `dist`, and add `NODE_VERSION=22` and `VITE_CLERK_PUBLISHABLE_KEY` as

@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Plain (non-secret) variables. Secrets (DATABASE_URL, CLERK_SECRET_KEY, RESEND_API_KEY, ...) are set in the
 # Cloudflare dashboard or with `npx wrangler pages secret put NAME`. Locally they live in .dev.vars.
 [vars]
-APP_ORIGIN = "https://builders-of-tomorrow-web.pages.dev"
+APP_ORIGIN = "https://builders.ascent-i-tech.in"
 RESEND_FROM = "Builders of Tomorrow <hello@mail.ascent-i-tech.in>"
 # Replies to the weekly summary and shared results land here.
 RESEND_REPLY_TO = "harsha@ascent-i-tech.in"
