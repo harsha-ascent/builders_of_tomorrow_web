@@ -1,7 +1,7 @@
-import { Line } from '@react-three/drei'
+import { Line, Text } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Suspense, useEffect, useMemo, useRef, type RefObject } from 'react'
-import { Group, Quaternion, Vector3 } from 'three'
+import { Group, Mesh, Quaternion, Vector3 } from 'three'
 import type { LaunchResult, RocketDesign, TrajectorySample } from '../../shared/types'
 import { sampleAt, stageList } from '../sim/rocket'
 import { Ground } from './Ground'
@@ -62,6 +62,10 @@ function Flight({ design, result, playing, speed, cameraMode, padPressureKPa, on
   })
   const pose = useMemo(() => restPose(design.launchAngleDeg), [design.launchAngleDeg])
   const guideLen = LAUNCHER.tubeLength - LAUNCHER.rocketOffset
+  const plumb = useRef<Mesh>(null)
+  const altLabel = useRef<Group>(null)
+  const altText = useRef<{ text: string } | null>(null)
+  const lastLabel = useRef(0)
   const stages = useMemo(() => stageList(design), [design])
   const nStages = stages.length
   const boosterGroups = useRef<(Group | null)[]>([])
@@ -91,12 +95,14 @@ function Flight({ design, result, playing, speed, cameraMode, padPressureKPa, on
   const up = useMemo(() => new Vector3(0, 1, 0), [])
   const tmp = useMemo(() => new Vector3(), [])
 
-  useFrame((_, dtRaw) => {
+  useFrame((state, dtRaw) => {
     const g = rocket.current
     if (!g) return
     const dt = Math.min(dtRaw, 0.05)
 
     if (!result || !playing) {
+      if (plumb.current) plumb.current.visible = false
+      if (altLabel.current) altLabel.current.visible = false
       g.position.set(pose.x, pose.y, 0)
       targetQ.setFromAxisAngle(zAxis, pose.rotZ)
       g.quaternion.copy(targetQ)
@@ -177,6 +183,27 @@ function Flight({ design, result, playing, speed, cameraMode, padPressureKPa, on
       c.scale.set(sc, sc, sc)
     }
 
+    // Vertical height indicator: a plumb line from the rocket to the ground plus a floating altitude label.
+    const alt = Math.max(s.y, 0)
+    if (plumb.current) {
+      plumb.current.visible = alt > 0.6
+      plumb.current.position.set(pose.x + s.x, alt / 2, 0)
+      plumb.current.scale.set(1, Math.max(alt, 0.001), 1)
+    }
+    if (altLabel.current) {
+      altLabel.current.visible = alt > 0.6
+      const camDist = Math.max(1.5, state.camera.position.distanceTo(g.position))
+      const k = camDist * 0.045
+      altLabel.current.position.set(pose.x + s.x + camDist * 0.08, alt, 0)
+      altLabel.current.scale.set(k, k, k)
+      altLabel.current.quaternion.copy(state.camera.quaternion)
+      if (altText.current && t.current - lastLabel.current > 0.15) {
+        lastLabel.current = t.current
+        const txt = `${alt.toFixed(1)} m`
+        if (altText.current.text !== txt) altText.current.text = txt
+      }
+    }
+
     // spray state
     const st = sprayState.current
     st.phase = done ? 'landed' : s.phase
@@ -235,8 +262,22 @@ function Flight({ design, result, playing, speed, cameraMode, padPressureKPa, on
       ))}
       <WaterSpray stateRef={sprayState} />
       {path && playing && (
-        <Line points={path} color="#ffffff" lineWidth={2} dashed dashSize={0.6} gapSize={0.4} transparent opacity={0.75} />
+        <>
+          {/* light halo under a dark dashed line so the path reads on sky and grass alike */}
+          <Line points={path} color="#ffffff" lineWidth={6} transparent opacity={0.45} />
+          <Line points={path} color="#1e2a4a" lineWidth={3} dashed dashSize={0.9} gapSize={0.35} />
+        </>
       )}
+      <mesh ref={plumb} visible={false}>
+        <cylinderGeometry args={[0.012, 0.012, 1, 8]} />
+        <meshBasicMaterial color="#1e2a4a" transparent opacity={0.55} />
+      </mesh>
+      <group ref={altLabel} visible={false}>
+        <Text ref={altText as never} fontSize={1} color="#1e2a4a" anchorX="left" anchorY="middle" outlineWidth={0.08} outlineColor="#ffffff">
+          0.0 m
+        </Text>
+      </group>
+      <HeightPole topM={result ? result.maxHeightM : 30} />
       <CameraRig mode={cameraMode} rocket={rocket} result={result} playing={playing} />
     </>
   )
@@ -281,4 +322,36 @@ function CameraRig({
     camera.lookAt(look.current)
   })
   return null
+}
+
+
+/** A vertical ruler beside the pad with a tick and label every 10 m, so height can be read off the picture. */
+function HeightPole({ topM }: { topM: number }) {
+  const top = Math.max(10, Math.ceil((topM + 5) / 10) * 10)
+  const ticks = useMemo(() => {
+    const out: number[] = []
+    for (let h = 10; h <= top; h += 10) out.push(h)
+    return out
+  }, [top])
+  const x = -1.6
+  const fontSize = Math.max(0.6, top / 45)
+  return (
+    <group position={[x, 0, 0]}>
+      <mesh position={[0, top / 2, 0]}>
+        <cylinderGeometry args={[0.03, 0.03, top, 8]} />
+        <meshStandardMaterial color="#1e2a4a" transparent opacity={0.5} />
+      </mesh>
+      {ticks.map((h) => (
+        <group key={h} position={[0, h, 0]}>
+          <mesh position={[-0.35, 0, 0]}>
+            <boxGeometry args={[0.7, 0.05, 0.05]} />
+            <meshStandardMaterial color={h % 50 === 0 ? '#ff6b6b' : '#1e2a4a'} />
+          </mesh>
+          <Text position={[-0.8, 0, 0]} fontSize={fontSize} color="#1e2a4a" anchorX="right" anchorY="middle" outlineWidth={fontSize * 0.08} outlineColor="#ffffff">
+            {`${h} m`}
+          </Text>
+        </group>
+      ))}
+    </group>
+  )
 }
