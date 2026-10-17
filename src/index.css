@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Fredoka', ui-rounded, 'Nunito', system-ui, sans-serif;
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #1e2a4a;
+  --color-ink-soft: #4a5578;
+  --color-cream: #fff8ec;
+  --color-paper: #ffffff;
+  --color-rocket: #ff6b6b;
+  --color-rocket-dark: #e04e4e;
+  --color-sun: #ffd93d;
+  --color-sun-dark: #e6b800;
+  --color-skyblue: #4cc9f0;
+  --color-skyblue-dark: #2a9fd6;
+  --color-grass: #6bcb77;
+  --color-grass-dark: #4caf5a;
+  --color-grape: #845ec2;
+  --color-grape-dark: #6a44a8;
+
+  --shadow-chunky: 0 6px 0 0 rgb(30 42 74 / 0.15);
+  --shadow-chunky-sm: 0 3px 0 0 rgb(30 42 74 / 0.15);
+  --shadow-float: 0 12px 30px -10px rgb(30 42 74 / 0.25);
+
+  --radius-blob: 1.75rem;
+
+  --animate-wiggle: wiggle 1.2s ease-in-out infinite;
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: rotate(-3deg);
+    }
+    50% {
+      transform: rotate(3deg);
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-8px);
+    }
+  }
+  @keyframes pop {
+    from {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-cream text-ink font-sans antialiased;
+    background-image:
+      radial-gradient(circle at 10% 0%, rgb(76 201 240 / 0.18), transparent 40%),
+      radial-gradient(circle at 90% 100%, rgb(255 217 61 / 0.2), transparent 40%);
+    background-attachment: fixed;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+  :focus-visible {
+    @apply outline-none ring-4 ring-sun/70 rounded-lg;
+  }
+  input[type='range'] {
+    @apply h-3 w-full cursor-pointer appearance-none rounded-full bg-ink/10;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    @apply h-7 w-7 appearance-none rounded-full border-4 border-white bg-rocket shadow-chunky-sm;
+  }
+  input[type='range']::-moz-range-thumb {
+    @apply h-7 w-7 rounded-full border-4 border-white bg-rocket shadow-chunky-sm;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-blob bg-paper p-5 shadow-float ring-1 ring-ink/5;
+  }
+  .btn,
+  .btn-primary,
+  .btn-sun,
+  .btn-sky,
+  .btn-grass,
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 font-display text-base font-semibold transition
+      active:translate-y-1 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0;
+  }
+  .btn-primary {
+    @apply bg-rocket text-white hover:bg-rocket-dark;
+    box-shadow: 0 6px 0 0 #b53a3a;
+  }
+  .btn-sun {
+    @apply bg-sun text-ink hover:bg-sun-dark;
+    box-shadow: 0 6px 0 0 #c49a00;
+  }
+  .btn-sky {
+    @apply bg-skyblue text-ink hover:bg-skyblue-dark hover:text-white;
+    box-shadow: 0 6px 0 0 #1d7fae;
+  }
+  .btn-grass {
+    @apply bg-grass text-ink hover:bg-grass-dark hover:text-white;
+    box-shadow: 0 6px 0 0 #3a8d46;
+  }
+  .btn-ghost {
+    @apply bg-white/70 text-ink ring-2 ring-ink/10 hover:bg-white;
+  }
+  .btn-primary:active,
+  .btn-sun:active,
+  .btn-sky:active,
+  .btn-grass:active {
+    box-shadow: none;
+  }
+  .btn-primary:disabled,
+  .btn-sun:disabled,
+  .btn-sky:disabled,
+  .btn-grass:disabled {
+    transform: none;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-ink/5 px-3 py-1 text-sm font-bold text-ink-soft;
+  }
+  .label {
+    @apply mb-1 block font-display text-sm font-semibold text-ink-soft;
+  }
+  .input {
+    @apply w-full rounded-2xl border-2 border-ink/10 bg-white px-4 py-3 text-base text-ink placeholder:text-ink/40 focus:border-skyblue;
+  }
+  .prose-kid {
+    @apply text-lg leading-relaxed text-ink;
+  }
+  .prose-kid p + p {
+    @apply mt-3;
+  }
+  .prose-kid strong {
+    @apply font-extrabold text-ink;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+  .print-lines {
+    min-height: 5rem;
+    background: repeating-linear-gradient(to bottom, transparent 0 1.6rem, #bbb 1.6rem calc(1.6rem + 1px));
+  }
+}

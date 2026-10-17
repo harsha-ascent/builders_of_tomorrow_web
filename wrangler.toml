@@ -1,0 +1,17 @@
+# Cloudflare Pages configuration.
+# Pages reads this file when you connect the GitHub repo (Workers & Pages → Create → Pages → Connect to Git).
+name = "builders-of-tomorrow-web"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Plain (non-secret) variables. Secrets (DATABASE_URL, CLERK_SECRET_KEY, RESEND_API_KEY, ...) are set in the
+# Cloudflare dashboard or with `npx wrangler pages secret put NAME`. Locally they live in .dev.vars.
+[vars]
+APP_ORIGIN = "https://builders-of-tomorrow-web.pages.dev"
+RESEND_FROM = "Builders of Tomorrow <onboarding@resend.dev>"
+
+# R2 bucket for student uploads. Create it first: Cloudflare → R2 → Create bucket → "builders-of-tomorrow-files".
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "builders-of-tomorrow-files"

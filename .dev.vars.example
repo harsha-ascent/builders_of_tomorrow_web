@@ -1,0 +1,9 @@
+# Copy to .dev.vars for local API development (`npm run dev:api`). Never commit .dev.vars.
+DATABASE_URL=postgresql://USER:PASSWORD@ep-xxx-pooler.REGION.aws.neon.tech/neondb?sslmode=require
+CLERK_SECRET_KEY=sk_test_xxx
+CLERK_PUBLISHABLE_KEY=pk_test_xxx
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_xxx
+RESEND_API_KEY=re_xxx
+RESEND_FROM=Builders of Tomorrow <onboarding@resend.dev>
+APP_ORIGIN=http://localhost:5173
+# AUTHORIZED_PARTIES=http://localhost:5173
