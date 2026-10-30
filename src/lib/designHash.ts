@@ -9,7 +9,7 @@ import { BOTTLES, LIMITS, STAGING, clamp } from '../sim/rocket'
  */
 
 export interface LabHashState {
-  view: 'lab' | null
+  view: 'lab' | 'simple' | null
   metric: LabMetric | null
   /** Only the keys present in the hash, already validated and clamped. */
   design: Partial<RocketDesign>
@@ -48,7 +48,8 @@ export function parseLabHash(hash: string): LabHashState {
   const out: LabHashState = { view: null, metric: null, design: {} }
   if (!raw) return out
   const q = new URLSearchParams(raw)
-  if (q.get('view') === 'lab') out.view = 'lab'
+  const view = q.get('view')
+  if (view === 'lab' || view === 'simple') out.view = view
   const map = q.get('map')
   if (map === 'r') out.metric = 'range'
   else if (map === 'h') out.metric = 'height'

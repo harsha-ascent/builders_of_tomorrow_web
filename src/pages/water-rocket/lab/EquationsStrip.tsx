@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 import type { LaunchResult, RocketDesign } from '../../../../shared/types'
 import { AssumptionsPanel } from '../../../components/AssumptionsPanel'
 import { Formula } from '../../../components/Formula'
+import { LabPanel } from '../../../components/lab'
 import { labMath } from '../../../sim/labMath'
 import { NOZZLE_DISCHARGE, PHYS } from '../../../sim/rocket'
 
@@ -16,18 +17,18 @@ export function EquationsStrip({ design, flight, className = '' }: { design: Roc
   const nozzleNote = design.boosters.length > 0 ? ' (bottom booster fires first)' : ''
 
   return (
-    <section className={`lab-panel ${className}`} style={{ minHeight: 0 }} aria-label="Equations">
-      <header className="lab-panel-head">
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h3 className="lab-title">Equations</h3>
-          <div className="lab-readout lab-k">the relations the simulator uses, with your numbers filled in · ages 12 and up</div>
-        </div>
-        <div className="lab-tools">
-          <Link to="../math" className="lab-link">
-            full derivations on The Math tab →
-          </Link>
-        </div>
-      </header>
+    <LabPanel
+      title="Equations"
+      span
+      compact
+      className={className}
+      readout={<span className="lab-k">the relations the simulator uses, with your numbers filled in · ages 12 and up</span>}
+      tools={
+        <Link to="../math" className="lab-link">
+          full derivations on The Math tab →
+        </Link>
+      }
+    >
       <div className="grid gap-2 p-2 md:grid-cols-2 xl:grid-cols-3">
         <Eq title="1 · Water exit speed (Bernoulli)" tex={R`v_e = \sqrt{\dfrac{2\,(P - P_{\text{atm}})}{\rho_w}}`} sub={`= √(2 × ${f(dP, 1)} kPa / ${PHYS.rhoWater} kg·m⁻³)`} result={`vₑ = ${f(m.ve0, 1)} m/s (${f(m.ve0 * 3.6, 0)} km/h)`} />
         <Eq
@@ -69,7 +70,7 @@ export function EquationsStrip({ design, flight, className = '' }: { design: Roc
         </p>
         <AssumptionsPanel dark moreTo="/workshops/water-rocket/math" />
       </div>
-    </section>
+    </LabPanel>
   )
 }
 

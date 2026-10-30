@@ -42,7 +42,7 @@ export interface LaunchSceneProps {
 
 export function LaunchScene(props: LaunchSceneProps) {
   const markersTo = props.result ? Math.ceil((props.result.rangeM + 20) / 10) * 10 : 60
-  const orbit = props.cameraMode === 'orbit' || (props.cameraMode === 'follow' && props.timeRef !== undefined)
+  const orbit = props.cameraMode === 'orbit' || (props.timeRef !== undefined && (props.cameraMode === 'follow' || props.cameraMode === 'wide'))
   return (
     <Canvas
       shadows
@@ -328,7 +328,7 @@ function Flight({ design, result, playing, speed, cameraMode, padPressureKPa, on
       </group>
       <HeightPole topM={result ? result.maxHeightM : 30} color={labelColor} outline={outline} />
       {orbit ? (
-        <OrbitRig rocket={rocket} result={result} playing={playing} follow={cameraMode === 'follow'} fitKey={fitKey ?? 0} />
+        <OrbitRig rocket={rocket} result={result} playing={playing} follow={cameraMode === 'follow'} alwaysFit={cameraMode === 'wide'} fitKey={fitKey ?? 0} />
       ) : (
         <CameraRig mode={cameraMode} rocket={rocket} result={result} playing={playing} />
       )}
@@ -429,12 +429,15 @@ function OrbitRig({
   result,
   playing,
   follow,
+  alwaysFit,
   fitKey,
 }: {
   rocket: RefObject<Group | null>
   result: LaunchResult | null
   playing: boolean
   follow: boolean
+  /** 'Wide' camera: keep framing the whole flight even after the user has orbited. */
+  alwaysFit: boolean
   fitKey: number
 }) {
   const controls = useRef<OrbitLike | null>(null)
@@ -457,7 +460,7 @@ function OrbitRig({
     const k = 1 - Math.exp(-3 * dt)
     if (follow && playing && rocket.current) {
       c.target.lerp(rocket.current.position, k)
-    } else if (!userMoved.current) {
+    } else if (alwaysFit || !userMoved.current) {
       c.target.lerp(fit.target, k)
       camera.position.lerp(fit.pos, k)
     }

@@ -1,53 +1,47 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import type { LaunchRecord, LaunchResult, RocketDesign } from '../../../../shared/types'
+import type { LaunchResult, RocketDesign } from '../../../../shared/types'
+import { Dot, LabShell, Readout, useHashState } from '../../../components/lab'
 import { encodeLabHash, hashHasDesign, parseLabHash } from '../../../lib/designHash'
 import { runLaunch } from '../../../lib/runSim'
-import { useLaunchLog } from '../../../lib/useLaunchLog'
-import { newDesignId } from '../../../sim/presets'
 import { NOZZLES, pressureZone } from '../../../sim/rocket'
 import { useDesignStore } from '../../../store/designStore'
-import { useLabStore } from '../../../store/labStore'
+import { useLabStore, type LabMetric } from '../../../store/labStore'
 import { BottleCutawayPanel } from './BottleCutawayPanel'
 import { EquationsStrip } from './EquationsStrip'
+import { FlightLogPanel } from './FlightLogPanel'
 import { FlightPanel } from './FlightPanel'
 import { GraphsPanel } from './GraphsPanel'
+import { MissionPanel } from './MissionPanel'
 import { ParameterMapPanel } from './ParameterMapPanel'
 
 /**
- * Lab view of the Launch page: one shared design (the workbench store, mirrored into the URL hash) drives
- * four linked instrument panels and an equations strip. Dragging in any panel changes the prediction
- * everywhere; LAUNCH plays the stored flight in the 3-D view and the graphs together.
+ * The Launch page's lab: one shared design (the workbench store, mirrored into the URL hash) drives
+ * linked instrument panels. Dragging in any panel changes the prediction everywhere; pump, count down
+ * and LAUNCH play the stored flight in the 3-D view and the graphs together.
  */
 export default function LabView() {
   const design = useDesignStore((s) => s.design)
   const flight = useMemo(() => runLaunch(design), [design])
   useLabUrlSync()
-  usePlayback(flight)
+  usePadAndPlayback(flight)
 
   return (
-    <div className="lab p-2 md:p-3">
-      <LabToolbar design={design} flight={flight} />
-      <div className="lab-grid mt-2">
-        <FlightPanel design={design} flight={flight} />
-        <ParameterMapPanel design={design} flight={flight} />
-        <BottleCutawayPanel design={design} flight={flight} />
-        <GraphsPanel flight={flight} />
-        <EquationsStrip design={design} flight={flight} className="lab-span" />
-      </div>
-    </div>
+    <LabShell toolbar={<LabToolbar design={design} flight={flight} />}>
+      <FlightPanel design={design} flight={flight} />
+      <ParameterMapPanel design={design} flight={flight} />
+      <BottleCutawayPanel design={design} flight={flight} />
+      <GraphsPanel flight={flight} />
+      <MissionPanel flight={flight} />
+      <FlightLogPanel design={design} flight={flight} />
+      <EquationsStrip design={design} flight={flight} />
+    </LabShell>
   )
 }
 
-/** Design readout, prediction summary, share link and flight-log save. */
+/** Design readout, prediction summary and a share link. */
 function LabToolbar({ design, flight }: { design: RocketDesign; flight: LaunchResult }) {
-  const done = useLabStore((s) => s.done)
-  const setLastResult = useDesignStore((s) => s.setLastResult)
-  const { addLaunch } = useLaunchLog()
   const [copied, setCopied] = useState(false)
-  // Remembered per flight, so a new prediction re-enables the button without an effect.
-  const [saveState, setSaveState] = useState<{ flight: LaunchResult; state: 'saving' | 'saved' } | null>(null)
-  const saved = saveState?.flight === flight ? saveState.state : 'idle'
   const nozzle = NOZZLES.find((n) => n.diameterMm === design.nozzleDiameterMm)
   const zone = pressureZone(design.pressurePsi)
 
@@ -61,56 +55,29 @@ function LabToolbar({ design, flight }: { design: RocketDesign; flight: LaunchRe
     }
   }
 
-  async function saveToLog() {
-    setSaveState({ flight, state: 'saving' })
-    const { samples: _s, events: _e, ...summary } = flight
-    void _s
-    void _e
-    const record: LaunchRecord = {
-      id: newDesignId(),
-      designId: design.id,
-      designName: design.name,
-      settings: {
-        waterFraction: design.waterFraction,
-        pressurePsi: design.pressurePsi,
-        launchAngleDeg: design.launchAngleDeg,
-        windMs: design.windMs,
-        stages: design.boosters.length + 1,
-        recovery: design.recovery,
-      },
-      result: summary,
-      createdAt: new Date().toISOString(),
-    }
-    try {
-      await addLaunch(record)
-      setLastResult(flight)
-      setSaveState({ flight, state: 'saved' })
-    } catch {
-      setSaveState(null)
-    }
-  }
-
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1">
       <div className="lab-readout flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="lab-title">design</span>
+        <span className="lab-title">rocket</span>
         <span className="truncate">
-          <b>{design.name}</b> · {design.bottleVolumeL} L · {design.dryMassG} g dry · nozzle {design.nozzleDiameterMm} mm{nozzle ? ` (${nozzle.label.split(' (')[0].toLowerCase()})` : ''} ·{' '}
-          {design.noseShape} nose · {design.finCount} fins · {design.recovery === 'parachute' ? `${Math.round(design.parachuteDiameterM * 100)} cm chute` : 'no chute'}
+          <b>{design.name}</b> · {design.bottleVolumeL} L bottle · {design.dryMassG} g empty · {design.nozzleDiameterMm} mm nozzle{nozzle ? ` (${nozzle.label.split(' (')[0].toLowerCase()})` : ''} ·{' '}
+          {design.noseShape} nose · {design.finCount} fins · {design.recovery === 'parachute' ? `${Math.round(design.parachuteDiameterM * 100)} cm parachute` : 'no parachute'}
           {design.boosters.length > 0 ? ` · ${design.boosters.length + 1} stages` : ''}
           {design.windMs ? ` · wind ${design.windMs} m/s` : ''}
         </span>
         <Link to="../build" className="lab-link">
-          edit in Build
+          change the rocket in Build
         </Link>
       </div>
       <div className="lab-readout flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="lab-title">prediction</span>
         {flight.liftedOff ? (
           <span>
-            <span className="lab-k">apogee</span> <b className="lab-accent">{flight.maxHeightM.toFixed(1)} m</b> · <span className="lab-k">range</span> <b>{flight.rangeM.toFixed(1)} m</b> ·{' '}
-            <span className="lab-k">flight</span> <b>{flight.flightTimeS.toFixed(1)} s</b> · <span className="lab-k">max</span> <b>{flight.maxSpeedMs.toFixed(0)} m/s</b> ·{' '}
-            <span className="lab-k">landing</span> <b>{flight.landingSpeedMs.toFixed(0)} m/s {flight.safeLanding ? 'soft' : 'hard'}</b>
+            <Readout label="height" value={flight.maxHeightM.toFixed(1)} unit="m" hot />
+            <Dot />
+            <Readout label="distance" value={flight.rangeM.toFixed(1)} unit="m" />
+            <Dot />
+            <Readout label="in the air" value={flight.flightTimeS.toFixed(1)} unit="s" />
           </span>
         ) : (
           <b className="lab-accent">no lift-off</b>
@@ -119,29 +86,23 @@ function LabToolbar({ design, flight }: { design: RocketDesign; flight: LaunchRe
           {zone.zone === 'green' ? '●' : zone.zone === 'amber' ? '▲' : '■'} {zone.label.toLowerCase()}
         </span>
         <button type="button" className="lab-btn" onClick={copyLink} title="Copy a link that opens this exact setup">
-          {copied ? '✓ copied' : '⧉ copy link'}
-        </button>
-        <button type="button" className="lab-btn" onClick={saveToLog} disabled={!done || saved !== 'idle'} title={done ? 'Save this flight to the log' : 'Launch first, then save'}>
-          {saved === 'saved' ? '✓ in flight log' : saved === 'saving' ? 'saving…' : '📒 save to log'}
+          {copied ? '✓ link copied' : '⧉ copy link to this setup'}
         </button>
       </div>
     </div>
   )
 }
 
-/**
- * Keeps the URL hash equal to the live design (and the map metric) and applies a pasted or shared hash.
- * replaceState keeps the browser history clean while dragging.
- */
+/** Keeps the URL hash equal to the live design and map metric, and applies a pasted or shared hash. */
 function useLabUrlSync() {
   const design = useDesignStore((s) => s.design)
   const update = useDesignStore((s) => s.update)
   const metric = useLabStore((s) => s.metric)
   const setMetric = useLabStore((s) => s.setMetric)
-
-  useEffect(() => {
-    const apply = () => {
-      const hash = window.location.hash
+  const value = useMemo(() => ({ design, metric }), [design, metric])
+  const encode = useCallback((v: { design: RocketDesign; metric: LabMetric }) => encodeLabHash(v.design, { metric: v.metric }), [])
+  const apply = useCallback(
+    (hash: string) => {
       if (!hashHasDesign(hash)) return
       const parsed = parseLabHash(hash)
       const current = useDesignStore.getState().design
@@ -151,22 +112,20 @@ function useLabUrlSync() {
       }
       if (Object.keys(patch).length > 0) update(patch)
       if (parsed.metric) setMetric(parsed.metric)
-    }
-    apply()
-    window.addEventListener('hashchange', apply)
-    return () => window.removeEventListener('hashchange', apply)
-  }, [update, setMetric])
-
-  useEffect(() => {
-    const next = `#${encodeLabHash(design, { metric })}`
-    if (window.location.hash === next) return
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${next}`)
-  }, [design, metric])
+    },
+    [update, setMetric],
+  )
+  useHashState(value, encode, apply)
 }
 
-/** Advances the shared clock while playing; any change to the flight puts the rocket back on the pad. */
-function usePlayback(flight: LaunchResult) {
+/**
+ * Drives the pad and the playback clock: the pump animation, the 3-2-1 countdown and the flight itself.
+ * Any change to the flight puts a fresh rocket on the pad.
+ */
+function usePadAndPlayback(flight: LaunchResult) {
   const playing = useLabStore((s) => s.playing)
+  const pumping = useLabStore((s) => s.pumping)
+  const countdown = useLabStore((s) => s.countdown)
 
   useEffect(() => {
     useLabStore.getState().reset()
@@ -174,17 +133,44 @@ function usePlayback(flight: LaunchResult) {
 
   useEffect(() => () => useLabStore.getState().reset(), [])
 
+  // Pump: progress follows the clock (an interval, not rAF) so it also finishes in a background tab.
+  useEffect(() => {
+    if (!pumping) return
+    const start = performance.now()
+    const duration = 1400
+    const id = window.setInterval(() => {
+      const f = Math.min(1, (performance.now() - start) / duration)
+      const st = useLabStore.getState()
+      st.setPump(f)
+      if (f >= 1) {
+        window.clearInterval(id)
+        st.setPumping(false)
+      }
+    }, 16)
+    return () => window.clearInterval(id)
+  }, [pumping])
+
+  useEffect(() => {
+    if (countdown === null) return
+    const id = window.setTimeout(() => {
+      const st = useLabStore.getState()
+      if (countdown > 1) st.setCountdown(countdown - 1)
+      else st.play()
+    }, 700)
+    return () => window.clearTimeout(id)
+  }, [countdown])
+
+  // Playback: flight time is anchored to the clock at (re)start, so a throttled frame rate never slows it.
+  const speed = useLabStore((s) => s.speed)
   useEffect(() => {
     if (!playing) return
     const end = flight.samples[flight.samples.length - 1]?.t ?? 0
+    const t0 = useLabStore.getState().time
+    const start = performance.now()
     let raf = 0
-    let last = performance.now()
-    const step = (now: number) => {
+    const step = () => {
       const st = useLabStore.getState()
-      // rAF timestamps can precede the performance.now() taken when the loop started; never step backwards.
-      const dt = Math.max(0, Math.min((now - last) / 1000, 0.05))
-      last = now
-      const t = st.time + dt * st.speed
+      const t = t0 + ((performance.now() - start) / 1000) * speed
       if (t >= end) {
         st.setTime(end)
         st.finish()
@@ -195,5 +181,5 @@ function usePlayback(flight: LaunchResult) {
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [playing, flight])
+  }, [playing, flight, speed])
 }

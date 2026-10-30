@@ -1,11 +1,11 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import type { LaunchResult, RocketDesign } from '../../../../shared/types'
+import { Dot, LabPanel, LabSlider, Readout, capturePointer, releasePointer } from '../../../components/lab'
 import { labMath } from '../../../sim/labMath'
-import { LIMITS, SAFETY, clamp, psiToPa } from '../../../sim/rocket'
+import { LIMITS, SAFETY, clamp, pressureZone, psiToPa } from '../../../sim/rocket'
 import { useDesignStore } from '../../../store/designStore'
 import { useLabStore, type LabActive } from '../../../store/labStore'
-import { ACCENT, accentFor, capturePointer, releasePointer } from './labHooks'
-import { LabPanel } from './LabPanel'
+import { ACCENT, isHot } from './labHooks'
 
 const VB = { w: 520, h: 330 }
 // Bottle, drawn nozzle-down as it sits on the pad.
@@ -79,23 +79,29 @@ export function BottleCutawayPanel({ design, flight }: { design: RocketDesign; f
   const dialAngle = design.launchAngleDeg
   const thrustLen = clamp(m.F0 / 4, 6, 150)
   const hot = (k: LabActive) => active === k
+  const zone = pressureZone(design.pressurePsi)
 
   return (
     <LabPanel
       title="Bottle & launcher"
+      style={{ minHeight: 500 }}
       readout={
         <>
-          <span className="lab-k">water</span> <b className={accentFor(active, 'water')}>{Math.round(design.waterFraction * 100)} % · {waterMl} ml</b> ·{' '}
-          <span className="lab-k">pressure</span> <b className={accentFor(active, 'pressure')}>{design.pressurePsi} psi · {kPa.toFixed(0)} kPa</b> ·{' '}
-          <span className="lab-k">angle</span> <b className={accentFor(active, 'angle')}>{design.launchAngleDeg}°</b>
+          <Readout label="water" value={`${Math.round(design.waterFraction * 100)} % (${waterMl} ml)`} hot={isHot(active, 'water')} />
+          <Dot />
+          <Readout label="pressure" value={`${design.pressurePsi} psi (${kPa.toFixed(0)} kPa)`} hot={isHot(active, 'pressure')} />
+          <Dot />
+          <Readout label="angle" value={design.launchAngleDeg} unit="° from the ground" hot={isHot(active, 'angle')} />
         </>
       }
       tools={
         <span className="lab-k">
-          {V} L bottle · nozzle {design.nozzleDiameterMm} mm · {Math.round(m.mDry * 1000)} g dry
+          {V} L bottle · {design.nozzleDiameterMm} mm nozzle · {Math.round(m.mDry * 1000)} g empty
         </span>
       }
     >
+      <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
       <svg
         ref={svg}
         className="lab-svg"
@@ -276,6 +282,43 @@ export function BottleCutawayPanel({ design, flight }: { design: RocketDesign; f
           />
         </g>
       </svg>
+      </div>
+      <div className="grid gap-x-4 gap-y-1 border-t px-3 py-2 sm:grid-cols-3" style={{ borderColor: 'var(--lab-line)' }}>
+        <LabSlider
+          label="water"
+          value={Math.round(design.waterFraction * 100)}
+          min={LIMITS.waterFraction.min * 100}
+          max={LIMITS.waterFraction.max * 100}
+          step={1}
+          unit="%"
+          hot={isHot(active, 'water')}
+          onChange={(v) => update({ waterFraction: v / 100 })}
+          hint={`${waterMl} ml of ${V * 1000} ml`}
+        />
+        <LabSlider
+          label="pump pressure"
+          value={design.pressurePsi}
+          min={LIMITS.pressurePsi.min}
+          max={LIMITS.pressurePsi.max}
+          step={1}
+          unit="psi"
+          hot={isHot(active, 'pressure')}
+          onChange={(v) => update({ pressurePsi: v })}
+          hint={`${zone.label}: ${zone.advice}`}
+        />
+        <LabSlider
+          label="launch angle"
+          value={design.launchAngleDeg}
+          min={LIMITS.launchAngleDeg.min}
+          max={LIMITS.launchAngleDeg.max}
+          step={1}
+          unit="°"
+          hot={isHot(active, 'angle')}
+          onChange={(v) => update({ launchAngleDeg: v })}
+          hint="90° is straight up; about 40° throws farthest"
+        />
+      </div>
+      </div>
     </LabPanel>
   )
 }

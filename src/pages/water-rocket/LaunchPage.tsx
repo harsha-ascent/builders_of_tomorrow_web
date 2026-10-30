@@ -7,6 +7,7 @@ import { PressureZoneHint } from '../../components/PressureZoneHint'
 import { Callout } from '../../components/ui/Callout'
 import { Slider } from '../../components/ui/Slider'
 import { StatTile } from '../../components/ui/StatTile'
+import { clearHash } from '../../components/lab/useHashState'
 import { parseLabHash } from '../../lib/designHash'
 import { fmt, heightComparison, speedComparison } from '../../lib/format'
 import { predict, runLaunch } from '../../lib/runSim'
@@ -23,20 +24,22 @@ const LabView = lazy(() => import('./lab/LabView'))
 type LaunchView = 'simple' | 'lab'
 const VIEW_KEY = 'bot:launch-view'
 
+/** Lab is the default; a link with view=simple or a remembered choice opens the simple pad instead. */
 function initialView(): LaunchView {
-  if (typeof window === 'undefined') return 'simple'
-  if (parseLabHash(window.location.hash).view === 'lab') return 'lab'
+  if (typeof window === 'undefined') return 'lab'
+  const fromHash = parseLabHash(window.location.hash).view
+  if (fromHash) return fromHash
   try {
-    if (window.localStorage.getItem(VIEW_KEY) === 'lab') return 'lab'
+    if (window.localStorage.getItem(VIEW_KEY) === 'simple') return 'simple'
   } catch {
     /* private mode */
   }
-  return 'simple'
+  return 'lab'
 }
 
 /**
- * Launch page with two views: the simple pad for younger kids (default) and the Lab view, a set of linked
- * instrument panels driven by one shared design that is mirrored into the URL hash.
+ * Launch page. The Lab view (linked instrument panels over one shared design, mirrored into the URL
+ * hash) is the default; a small switch brings back the simple pad for younger kids.
  */
 export default function LaunchPage() {
   const [view, setView] = useState<LaunchView>(initialView)
@@ -48,55 +51,64 @@ export default function LaunchPage() {
     } catch {
       /* private mode */
     }
-    if (v === 'simple') window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`)
+    if (v === 'simple') clearHash()
+  }
+
+  const toggle = (
+    <div className="flex items-center gap-1 rounded-full bg-ink/5 p-0.5 text-xs ring-1 ring-ink/10" role="radiogroup" aria-label="Launch page view">
+      {(
+        [
+          { value: 'lab', label: '🔬 Lab' },
+          { value: 'simple', label: '🧒 Simple' },
+        ] as const
+      ).map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={view === o.value}
+          onClick={() => choose(o.value)}
+          className={`rounded-full px-3 py-1 font-display font-bold transition ${view === o.value ? 'bg-ink text-white shadow-chunky-sm' : 'text-ink hover:bg-white'}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (view === 'simple') {
+    return (
+      <>
+        <div className="mx-auto -mb-4 w-full max-w-7xl px-4 pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-ink-soft">Simple view: pump, launch, watch. Switch to the Lab for linked instruments, the settings map and the equations.</p>
+            {toggle}
+          </div>
+        </div>
+        <SimpleLaunchView />
+      </>
+    )
   }
 
   return (
-    <>
-      <div className={`mx-auto w-full px-4 pt-6 ${view === 'lab' ? 'max-w-[1600px]' : '-mb-4 max-w-7xl'}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-ink-soft">
-            {view === 'lab'
-              ? 'Lab view: every panel is linked. Drag in any of them and the others follow; the link in your address bar reproduces the setup.'
-              : 'Simple view: pump, launch, watch. Older builders can switch to the Lab for linked instruments and the equations.'}
-          </p>
-          <div className="flex items-center gap-1 rounded-full bg-ink/5 p-1 text-sm ring-1 ring-ink/10" role="radiogroup" aria-label="Launch page view">
-            {(
-              [
-                { value: 'simple', label: '🧒 Simple' },
-                { value: 'lab', label: '🔬 Lab' },
-              ] as const
-            ).map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                role="radio"
-                aria-checked={view === o.value}
-                onClick={() => choose(o.value)}
-                className={`rounded-full px-4 py-1.5 font-display font-bold transition ${view === o.value ? 'bg-ink text-white shadow-chunky-sm' : 'text-ink hover:bg-white'}`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-soft">
+          Every panel is linked: drag in any of them and the others follow, then pump and launch. The link in your address bar reproduces the setup. Younger
+          builders can switch to Simple.
+        </p>
+        {toggle}
       </div>
-      {view === 'lab' ? (
-        <div className="mx-auto w-full max-w-[1600px] px-4 py-4">
-          <Suspense
-            fallback={
-              <div className="lab flex min-h-[60vh] items-center justify-center" style={{ color: 'var(--lab-muted)' }}>
-                loading the lab…
-              </div>
-            }
-          >
-            <LabView />
-          </Suspense>
-        </div>
-      ) : (
-        <SimpleLaunchView />
-      )}
-    </>
+      <Suspense
+        fallback={
+          <div className="lab flex min-h-[60vh] items-center justify-center" style={{ color: 'var(--lab-muted)' }}>
+            loading the lab…
+          </div>
+        }
+      >
+        <LabView />
+      </Suspense>
+    </div>
   )
 }
 
