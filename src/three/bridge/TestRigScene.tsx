@@ -1,7 +1,8 @@
 import { OrbitControls, Text } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useMemo, useRef, type RefObject } from 'react'
-import { Group, Mesh, Vector3 } from 'three'
+import { Suspense, useEffect, useMemo, useRef, type RefObject } from 'react'
+import { Camera, Group, Mesh, Object3D, PerspectiveCamera, Vector3 } from 'three'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { BridgeAnalysis, BridgeDesign } from '../../../shared/types'
 import { useInView } from '../../components/ui/LazyMount'
 import { SPAN_CM, deckNodes } from '../../sim/bridge'
@@ -26,6 +27,8 @@ export interface TestRigSceneProps {
   dark?: boolean
   /** 'orbit' lets the user spin the model; 'cinematic' slowly circles. */
   cameraMode?: 'orbit' | 'cinematic'
+  /** Orbit camera: bump to reframe the whole bridge for the canvas's current shape (also on mount). */
+  fitKey?: number
 }
 
 /** The 3-D test rig: a model bridge across two stacks of books, a bucket or a toy truck for the load. */
@@ -43,6 +46,7 @@ export function TestRigScene({
   loadXRef,
   dark = false,
   cameraMode = 'cinematic',
+  fitKey,
 }: TestRigSceneProps) {
   const inView = useInView()
   return (
@@ -70,14 +74,22 @@ export function TestRigScene({
         ) : (
           <Truck design={design} analysis={analysis} stateRef={stateRef} loadKgRef={loadKgRef} loadXRef={loadXRef} dark={dark} />
         )}
-        <Rig cameraMode={cameraMode} />
+        <Rig cameraMode={cameraMode} fitKey={fitKey} />
       </Suspense>
     </Canvas>
   )
 }
 
-function Rig({ cameraMode }: { cameraMode: 'orbit' | 'cinematic' }) {
+/** Half-extents of what "Fit" frames: the bridge, its tallest truss and the hanging bucket. */
+const FIT_HALF_W = 0.31
+const FIT_HALF_H = 0.21
+/** Viewing direction of the default (and fitted) orbit camera. */
+const FIT_DIR = new Vector3(0.25, 0.28, 0.65).normalize()
+
+function Rig({ cameraMode, fitKey }: { cameraMode: 'orbit' | 'cinematic'; fitKey?: number }) {
   const { camera } = useThree()
+  const get = useThree((s) => s.get)
+  const controls = useRef<OrbitControlsImpl>(null)
   const t = useRef(0.6)
   const look = useMemo(() => new Vector3(SPAN_CM * CM * 0.5, 0.0, 0), [])
   useFrame((_, dt) => {
@@ -87,10 +99,46 @@ function Rig({ cameraMode }: { cameraMode: 'orbit' | 'cinematic' }) {
     camera.position.set(SPAN_CM * CM * 0.5 + Math.sin(t.current) * r, 0.26, Math.cos(t.current) * r)
     camera.lookAt(look)
   })
+  // Fit: back the camera off along the default direction until the bridge fills the canvas, whatever its shape.
+  useEffect(() => {
+    if (cameraMode !== 'orbit' || fitKey === undefined) return
+    const { width, height } = get().size
+    const fov = camera instanceof PerspectiveCamera ? camera.fov : 35
+    const tanHalf = Math.tan((fov * Math.PI) / 360)
+    const aspect = width / Math.max(height, 1)
+    const d = Math.max(FIT_HALF_H / tanHalf, FIT_HALF_W / (tanHalf * aspect)) * 1.12
+    camera.position.copy(look).addScaledVector(FIT_DIR, d)
+    camera.lookAt(look)
+    if (controls.current) {
+      controls.current.target.copy(look)
+      controls.current.update()
+    }
+  }, [fitKey, cameraMode, camera, get, look])
   if (cameraMode === 'orbit') {
-    return <OrbitControls target={[SPAN_CM * CM * 0.5, 0, 0]} enablePan={false} minDistance={0.3} maxDistance={1.6} maxPolarAngle={Math.PI / 2 - 0.05} makeDefault />
+    return <OrbitControls ref={controls} target={[SPAN_CM * CM * 0.5, 0, 0]} enablePan={false} minDistance={0.3} maxDistance={1.6} maxPolarAngle={Math.PI / 2 - 0.05} makeDefault />
   }
   return null
+}
+
+const labelTmp = new Vector3()
+/**
+ * Puts the load label's top at (x, y) in the scene unless that would leave the canvas; then it is held
+ * just inside the edge at the same depth, so the reading stays legible however the camera is set. The
+ * label always faces the camera.
+ */
+function placeLabel(label: Object3D, camera: Camera, x: number, y: number) {
+  label.quaternion.copy(camera.quaternion)
+  labelTmp.set(x, y, 0).project(camera)
+  const cx = Math.min(0.75, Math.max(-0.75, labelTmp.x))
+  const cy = Math.min(0.9, Math.max(-0.9, labelTmp.y))
+  if (cx === labelTmp.x && cy === labelTmp.y) {
+    label.position.set(x, y, 0)
+    return
+  }
+  labelTmp.x = cx
+  labelTmp.y = cy
+  labelTmp.unproject(camera)
+  label.position.copy(labelTmp)
 }
 
 function loadPoint(design: BridgeDesign, analysis: BridgeAnalysis | null, load: number, sag: number, xCm: number): [number, number] {
@@ -118,7 +166,7 @@ function Bucket({ design, analysis, stateRef, loadKgRef, loadXRef, dark }: LoadP
   const string = useRef<Mesh>(null)
   const drop = useRef(0)
   const stringLen = 0.1
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const st = stateRef.current
     if (!st || !group.current) return
     const xCm = loadXRef?.current ?? SPAN_CM / 2
@@ -136,7 +184,7 @@ function Bucket({ design, analysis, stateRef, loadKgRef, loadXRef, dark }: LoadP
       string.current.position.set(x, y - stringLen / 2, 0)
       string.current.scale.y = stringLen
     }
-    if (label.current) label.current.position.set(x, y + 0.26 * 0.5 + 0.08, 0)
+    if (label.current) placeLabel(label.current, camera, x, y + 0.22)
   })
   const kg = loadKgRef.current ?? 0
   return (
@@ -176,7 +224,7 @@ function Truck({ design, analysis, stateRef, loadKgRef, loadXRef, dark }: LoadPr
   const label = useRef<Group>(null)
   const xRef = useRef<number | null>(null)
   const target = analysis?.worstLoadX ?? SPAN_CM / 2
-  useFrame((_, dt) => {
+  useFrame(({ camera }, dt) => {
     const st = stateRef.current
     if (!st || !group.current) return
     // drive in from the left as the load builds, park at the worst spot (or wherever the Lab puts the load)
@@ -187,7 +235,7 @@ function Truck({ design, analysis, stateRef, loadKgRef, loadXRef, dark }: LoadPr
     const px = xRef.current < 0 ? xRef.current * CM : x
     group.current.position.set(px, y + 0.004, 0)
     group.current.rotation.x = st.brokenId ? 0.5 : 0
-    if (label.current) label.current.position.set(px, y + 0.14, 0)
+    if (label.current) placeLabel(label.current, camera, px, y + 0.17)
   })
   return (
     <>
@@ -231,7 +279,7 @@ function LoadLabel({ loadKgRef, fallback, dark }: { loadKgRef: RefObject<number>
     if (ref.current && ref.current.text !== txt) ref.current.text = txt
   })
   return (
-    <Text ref={ref as never} fontSize={0.03} color={dark ? '#f5a623' : '#1e2a4a'} anchorX="center" anchorY="bottom" outlineWidth={0.002} outlineColor={dark ? '#0b0f17' : '#ffffff'}>
+    <Text ref={ref as never} fontSize={0.03} color={dark ? '#f5a623' : '#1e2a4a'} anchorX="center" anchorY="top" outlineWidth={0.002} outlineColor={dark ? '#0b0f17' : '#ffffff'}>
       {`${fallback.toFixed(1)} kg`}
     </Text>
   )

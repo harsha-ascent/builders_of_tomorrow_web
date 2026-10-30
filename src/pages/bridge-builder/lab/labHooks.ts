@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import type { BridgeAnalysis, BridgeDesign, BridgeTestRecord } from '../../../../shared/types'
 import type { useTestLog } from '../../../lib/useTestLog'
 import type { BridgeModelResult, LoadResponse } from '../../../sim/bridge'
@@ -22,34 +22,41 @@ export interface BridgeLab {
 
 export type TestLog = ReturnType<typeof useTestLog<BridgeTestRecord>>
 
-/** The applied load, re-rendering at most `fps` times a second (the ramp itself ticks every frame). */
+const getLoadKg = () => useBridgeLabStore.getState().loadKg
+
+/**
+ * The applied load, re-rendering at most `fps` times a second (the ramp itself ticks every frame). An
+ * external-store subscription, so a remount re-reads the store instead of keeping a stale value.
+ */
 export function useLabLoad(fps = 15): number {
-  const [kg, setKg] = useState(() => useBridgeLabStore.getState().loadKg)
-  useEffect(() => {
-    let last = 0
-    let pending: number | null = null
-    const unsub = useBridgeLabStore.subscribe(
-      (s) => s.loadKg,
-      (v) => {
-        const now = performance.now()
-        if (now - last >= 1000 / fps) {
-          last = now
-          setKg(v)
-        } else if (pending === null) {
-          pending = window.setTimeout(() => {
-            pending = null
-            last = performance.now()
-            setKg(useBridgeLabStore.getState().loadKg)
-          }, 1000 / fps)
-        }
-      },
-    )
-    return () => {
-      unsub()
-      if (pending !== null) window.clearTimeout(pending)
-    }
-  }, [fps])
-  return kg
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      let last = 0
+      let pending: number | null = null
+      const unsub = useBridgeLabStore.subscribe(
+        (s) => s.loadKg,
+        () => {
+          const now = performance.now()
+          if (now - last >= 1000 / fps) {
+            last = now
+            onChange()
+          } else if (pending === null) {
+            pending = window.setTimeout(() => {
+              pending = null
+              last = performance.now()
+              onChange()
+            }, 1000 / fps)
+          }
+        },
+      )
+      return () => {
+        unsub()
+        if (pending !== null) window.clearTimeout(pending)
+      }
+    },
+    [fps],
+  )
+  return useSyncExternalStore(subscribe, getLoadKg, getLoadKg)
 }
 
 /** Lets the load graph's cursor follow the ramp without React renders. */

@@ -106,14 +106,21 @@ function LabToolbar({ lab }: { lab: BridgeLab }) {
   )
 }
 
-/** Keeps the URL hash equal to the live test state, and applies a pasted or shared hash. */
+/**
+ * Keeps the URL hash equal to the live test state, and applies a pasted or shared hash. The load is
+ * read from the store when the hash is written (never from a throttled copy, which can lag a frame);
+ * the throttled hook only limits how often the ramp rewrites the hash.
+ */
 function useBridgeUrlSync(designId: string, rangeKg: number) {
-  const loadKg = useLabLoad(5)
+  const loadTick = useLabLoad(5)
   const loadX = useBridgeLabStore((s) => s.loadX)
   const selectedId = useBridgeLabStore((s) => s.selectedId)
   const rangeRef = useLatest(rangeKg)
-  const value = useMemo(() => ({ loadKg, loadX, designId, selectedId }), [loadKg, loadX, designId, selectedId])
-  const encode = useCallback((v: { loadKg: number; loadX: number; designId: string; selectedId: string | null }) => encodeBridgeHash(v), [])
+  const value = useMemo(() => ({ loadTick, loadX, designId, selectedId }), [loadTick, loadX, designId, selectedId])
+  const encode = useCallback(
+    (v: { loadX: number; designId: string; selectedId: string | null }) => encodeBridgeHash({ loadKg: useBridgeLabStore.getState().loadKg, loadX: v.loadX, designId: v.designId, selectedId: v.selectedId }),
+    [],
+  )
   const apply = useCallback(
     (hash: string) => {
       if (!hashHasTest(hash)) return

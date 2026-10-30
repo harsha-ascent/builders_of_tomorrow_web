@@ -30,6 +30,7 @@ export function RigPanel({ lab, log }: { lab: BridgeLab; log: TestLog }) {
   const start = useBridgeLabStore((s) => s.start)
   const stop = useBridgeLabStore((s) => s.stop)
   const selectedId = useSelectedMember(lab.resp)
+  const [fitKey, setFitKey] = useState(0)
 
   const rig = useRef<RigState>({ load: 0, brokenId: null, sagScale: 1 })
   const loadXRef = useRef(loadX)
@@ -101,6 +102,9 @@ export function RigPanel({ lab, log }: { lab: BridgeLab; log: TestLog }) {
             ]}
             onChange={setColorMode}
           />
+          <button type="button" className="lab-btn" onClick={() => setFitKey((k) => k + 1)} title="Frame the whole bridge">
+            ⛶ Fit
+          </button>
           <Link to="../build" className="lab-btn">
             🔧 Workbench
           </Link>
@@ -121,6 +125,7 @@ export function RigPanel({ lab, log }: { lab: BridgeLab; log: TestLog }) {
           onSelectMember={setSelected}
           onHoverMember={setHover}
           cameraMode="orbit"
+          fitKey={fitKey}
           dark
         />
       </div>
