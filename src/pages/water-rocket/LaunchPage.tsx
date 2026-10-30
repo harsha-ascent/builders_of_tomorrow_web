@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { LaunchRecord, LaunchResult, TrajectorySample } from '../../../shared/types'
 import { Page } from '../../components/layout/Page'
@@ -7,6 +7,7 @@ import { PressureZoneHint } from '../../components/PressureZoneHint'
 import { Callout } from '../../components/ui/Callout'
 import { Slider } from '../../components/ui/Slider'
 import { StatTile } from '../../components/ui/StatTile'
+import { parseLabHash } from '../../lib/designHash'
 import { fmt, heightComparison, speedComparison } from '../../lib/format'
 import { predict, runLaunch } from '../../lib/runSim'
 import { useLaunchLog } from '../../lib/useLaunchLog'
@@ -17,7 +18,90 @@ import { LaunchScene, type CameraMode } from '../../three/LaunchScene'
 
 const TARGET_TOLERANCE_M = 3
 
+const LabView = lazy(() => import('./lab/LabView'))
+
+type LaunchView = 'simple' | 'lab'
+const VIEW_KEY = 'bot:launch-view'
+
+function initialView(): LaunchView {
+  if (typeof window === 'undefined') return 'simple'
+  if (parseLabHash(window.location.hash).view === 'lab') return 'lab'
+  try {
+    if (window.localStorage.getItem(VIEW_KEY) === 'lab') return 'lab'
+  } catch {
+    /* private mode */
+  }
+  return 'simple'
+}
+
+/**
+ * Launch page with two views: the simple pad for younger kids (default) and the Lab view, a set of linked
+ * instrument panels driven by one shared design that is mirrored into the URL hash.
+ */
 export default function LaunchPage() {
+  const [view, setView] = useState<LaunchView>(initialView)
+
+  function choose(v: LaunchView) {
+    setView(v)
+    try {
+      window.localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* private mode */
+    }
+    if (v === 'simple') window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`)
+  }
+
+  return (
+    <>
+      <div className={`mx-auto w-full px-4 pt-6 ${view === 'lab' ? 'max-w-[1600px]' : '-mb-4 max-w-7xl'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-ink-soft">
+            {view === 'lab'
+              ? 'Lab view: every panel is linked. Drag in any of them and the others follow; the link in your address bar reproduces the setup.'
+              : 'Simple view: pump, launch, watch. Older builders can switch to the Lab for linked instruments and the equations.'}
+          </p>
+          <div className="flex items-center gap-1 rounded-full bg-ink/5 p-1 text-sm ring-1 ring-ink/10" role="radiogroup" aria-label="Launch page view">
+            {(
+              [
+                { value: 'simple', label: '🧒 Simple' },
+                { value: 'lab', label: '🔬 Lab' },
+              ] as const
+            ).map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={view === o.value}
+                onClick={() => choose(o.value)}
+                className={`rounded-full px-4 py-1.5 font-display font-bold transition ${view === o.value ? 'bg-ink text-white shadow-chunky-sm' : 'text-ink hover:bg-white'}`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {view === 'lab' ? (
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-4">
+          <Suspense
+            fallback={
+              <div className="lab flex min-h-[60vh] items-center justify-center" style={{ color: 'var(--lab-muted)' }}>
+                loading the lab…
+              </div>
+            }
+          >
+            <LabView />
+          </Suspense>
+        </div>
+      ) : (
+        <SimpleLaunchView />
+      )}
+    </>
+  )
+}
+
+/** The original launch pad: pump it up, count down, watch, log. Unchanged for younger kids. */
+function SimpleLaunchView() {
   const design = useDesignStore((s) => s.design)
   const update = useDesignStore((s) => s.update)
   const setLastResult = useDesignStore((s) => s.setLastResult)
