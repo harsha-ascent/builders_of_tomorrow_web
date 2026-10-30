@@ -1,7 +1,7 @@
 import type { LaunchResult, RocketDesign } from '../../../../shared/types'
 import { LabPanel, LabSeg, ParameterMap, Readout, Dot, type MapAxis, type MapPreset } from '../../../components/lab'
 import { useParameterMap } from '../../../lib/useParameterMap'
-import { CELL, MAP_PRESSURES, MAP_WATERS } from '../../../sim/paramMap'
+import { CELL, MAP_PRESSURES, MAP_WATERS, ROCKET_MAP } from '../../../sim/paramMap'
 import { LIMITS, SAFETY } from '../../../sim/rocket'
 import { useDesignStore } from '../../../store/designStore'
 import { useLabStore, type LabMetric } from '../../../store/labStore'
@@ -42,7 +42,7 @@ export function ParameterMapPanel({ design, flight }: { design: RocketDesign; fl
   const setMetric = useLabStore((s) => s.setMetric)
   const active = useLabStore((s) => s.active)
   const setActive = useLabStore((s) => s.setActive)
-  const map = useParameterMap(design)
+  const map = useParameterMap(design, ROCKET_MAP)
   const field = metric === 'height' ? CELL.height : CELL.range
 
   const value = metric === 'height' ? flight.maxHeightM : flight.rangeM

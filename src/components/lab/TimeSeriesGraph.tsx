@@ -33,7 +33,12 @@ export interface TimeSeriesGraphProps {
   markers?: GraphMarker[]
   /** End of the time axis; defaults to the last sample. */
   tMax?: number
+  /** Unit of the horizontal axis (seconds for a flight, kilograms for a load test). */
   timeUnit?: string
+  /** Name of the horizontal axis; defaults to "time". */
+  xLabel?: string
+  /** Decimals for the cursor's horizontal reading (default 2). */
+  xDigits?: number
   /** Cursor position; `subscribeCursor` lets playback move it every frame without a React render. */
   cursor: number
   subscribeCursor?: (cb: (t: number) => void) => () => void
@@ -122,6 +127,14 @@ function tMaxOf(p: TimeSeriesGraphProps) {
   return t
 }
 
+/** A round tick spacing (1, 2 or 5 × a power of ten) near `v`. */
+function niceStep(v: number) {
+  if (v <= 0) return 1
+  const p = 10 ** Math.floor(Math.log10(v))
+  const f = v / p
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p
+}
+
 function niceMax(v: number) {
   if (v <= 0) return 1
   const p = 10 ** Math.floor(Math.log10(v))
@@ -178,10 +191,10 @@ function draw(ctx: CanvasRenderingContext2D, w: number, h: number, p: TimeSeries
   ctx.textBaseline = 'top'
   rows.forEach((s, i) => ctx.fillText(`${s.label}  ${s.unit}`, PAD.l + 4, tops[i] + 2))
   ctx.textAlign = 'center'
-  const tickStep = T > 20 ? 5 : T > 8 ? 2 : T > 3 ? 1 : T > 1 ? 0.5 : 0.2
+  const tickStep = niceStep(T / 6)
   const bottom = tops[rows.length - 1] + plotH
-  for (let t = 0; t <= T + 1e-6; t += tickStep) ctx.fillText(`${Number(t.toFixed(1))}`, X(t), bottom + 4)
-  ctx.fillText(`time  ${p.timeUnit ?? 's'}  →`, PAD.l + pw / 2, bottom + 14)
+  for (let t = 0; t <= T + 1e-6; t += tickStep) ctx.fillText(`${Number(t.toFixed(2))}`, X(t), bottom + 4)
+  ctx.fillText(`${p.xLabel ?? 'time'}  ${p.timeUnit ?? 's'}  →`, PAD.l + pw / 2, bottom + 14)
 
   // Curves.
   ctx.lineWidth = 1.8
@@ -238,7 +251,7 @@ function draw(ctx: CanvasRenderingContext2D, w: number, h: number, p: TimeSeries
     ctx.beginPath()
     ctx.arc(xx, Y(i, v), 4, 0, Math.PI * 2)
     ctx.fill()
-    if (i === 0) ctx.fillText(`time ${t.toFixed(2)} ${p.timeUnit ?? 's'}`, lx, tops[i] + 16)
+    if (i === 0) ctx.fillText(`${p.xLabel ?? 'time'} ${t.toFixed(p.xDigits ?? 2)} ${p.timeUnit ?? 's'}`, lx, tops[i] + 16)
     ctx.fillText(`${s.label} ${fmt(v, s.digits ?? (maxes[i] < 5 ? 1 : 0))} ${s.unit}`, lx, tops[i] + (i === 0 ? 28 : 16))
   })
 }

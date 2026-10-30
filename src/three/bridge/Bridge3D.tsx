@@ -1,5 +1,6 @@
-import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef, type RefObject } from 'react'
+import { useCursor } from '@react-three/drei'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { useMemo, useRef, useState, type RefObject } from 'react'
 import { Color, Group, Mesh, MeshStandardMaterial } from 'three'
 import type { BridgeAnalysis, BridgeDesign, BridgeNode } from '../../../shared/types'
 import { MATERIALS, SPAN_CM, deckNodes, isSupport, layersOf, memberSection } from '../../sim/bridge'
@@ -26,6 +27,13 @@ export interface Bridge3DProps {
   colorMode?: 'material' | 'forces'
   /** Which member is highlighted (e.g. selected in the editor). */
   highlightId?: string | null
+  /** A second, softer highlight (the member under the pointer in another panel). */
+  hoverId?: string | null
+  /** Highlight colour; the Lab view passes its amber accent. */
+  accent?: string
+  /** Clicking a member in the scene; hovering one (null when the pointer leaves). */
+  onSelectMember?: (id: string) => void
+  onHoverMember?: (id: string | null) => void
 }
 
 const TENSION = new Color('#ff5a5a')
@@ -53,8 +61,12 @@ export function nodePosition(n: BridgeNode, analysis: BridgeAnalysis | null, loa
  * The whole bridge: two identical trusses, deck planks between the road joints and small cross ties.
  * Members are boxes whose length, position and colour are updated every frame from `stateRef`.
  */
-export function Bridge3D({ design, analysis, stateRef, colorMode = 'forces', highlightId = null }: Bridge3DProps) {
+export function Bridge3D({ design, analysis, stateRef, colorMode = 'forces', highlightId = null, hoverId = null, accent, onSelectMember, onHoverMember }: Bridge3DProps) {
   const nodes = useMemo(() => nodeMap(design), [design])
+  const hilite = useMemo(() => (accent ? new Color(accent) : HILITE), [accent])
+  const [hovering, setHovering] = useState(false)
+  useCursor(hovering && !!onSelectMember)
+  const pickable = !!(onSelectMember || onHoverMember)
   const deck = useMemo(() => deckNodes(design), [design])
   const util = useMemo(() => {
     const m = new Map<string, { utilization: number; forceN: number }>()
@@ -64,6 +76,7 @@ export function Bridge3D({ design, analysis, stateRef, colorMode = 'forces', hig
 
   const memberMeshes = useRef<Map<string, Mesh[]>>(new Map())
   const brokenHalves = useRef<Map<string, Group[]>>(new Map())
+  const hitMeshes = useRef<Map<string, Mesh>>(new Map())
   const plankMeshes = useRef<Mesh[]>([])
   const tieMeshes = useRef<Mesh[]>([])
   const tmpColor = useMemo(() => new Color(), [])
@@ -93,8 +106,9 @@ export function Bridge3D({ design, analysis, stateRef, colorMode = 'forces', hig
       } else {
         tmpColor.set(mat.color)
       }
-      if (highlightId === m.id) tmpColor.lerp(HILITE, 0.6)
       if (isBroken) tmpColor.copy(BROKEN)
+      if (hoverId === m.id && highlightId !== m.id) tmpColor.lerp(hilite, 0.4)
+      if (highlightId === m.id) tmpColor.lerp(hilite, accent ? 0.9 : 0.6)
 
       const meshes = memberMeshes.current.get(m.id) ?? []
       const halves = brokenHalves.current.get(m.id) ?? []
@@ -105,6 +119,12 @@ export function Bridge3D({ design, analysis, stateRef, colorMode = 'forces', hig
         mesh.rotation.z = ang
         mesh.scale.x = Math.max(len, 0.001)
         ;(mesh.material as MeshStandardMaterial).color.copy(tmpColor)
+      }
+      const hit = hitMeshes.current.get(m.id)
+      if (hit) {
+        hit.position.set((ax + bx) / 2, (ay + by) / 2, 0)
+        hit.rotation.z = ang
+        hit.scale.x = Math.max(len, 0.001)
       }
       for (let i = 0; i < halves.length; i++) {
         const g = halves[i]
@@ -163,6 +183,31 @@ export function Bridge3D({ design, analysis, stateRef, colorMode = 'forces', hig
                 <meshStandardMaterial color={MATERIALS[m.material].color} roughness={0.8} />
               </mesh>
             ))}
+            {/* invisible, fatter hit box across both trusses so a thin stick is easy to click or tap */}
+            {pickable && (
+              <mesh
+                ref={(el) => {
+                  if (el) hitMeshes.current.set(m.id, el as Mesh)
+                  else hitMeshes.current.delete(m.id)
+                }}
+                onClick={(e: ThreeEvent<MouseEvent>) => {
+                  e.stopPropagation()
+                  onSelectMember?.(m.id)
+                }}
+                onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+                  e.stopPropagation()
+                  setHovering(true)
+                  onHoverMember?.(m.id)
+                }}
+                onPointerOut={() => {
+                  setHovering(false)
+                  onHoverMember?.(null)
+                }}
+              >
+                <boxGeometry args={[1, 0.018, TRUSS_GAP + 0.03]} />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
+              </mesh>
+            )}
             {/* broken halves: two per truss */}
             {[-TRUSS_GAP / 2, -TRUSS_GAP / 2, TRUSS_GAP / 2, TRUSS_GAP / 2].map((z, i) => (
               <group

@@ -15,27 +15,60 @@ export interface TestRigSceneProps {
   loadKgRef: RefObject<number>
   colorMode?: 'material' | 'forces'
   highlightId?: string | null
+  hoverId?: string | null
+  /** Highlight colour (the Lab view's amber). */
+  accent?: string
+  onSelectMember?: (id: string) => void
+  onHoverMember?: (id: string | null) => void
+  /** Where along the road the load sits (cm), read every frame; default: mid-span bucket / worst-spot truck. */
+  loadXRef?: RefObject<number>
+  /** Dark background for the Lab view's instrument panel. */
+  dark?: boolean
   /** 'orbit' lets the user spin the model; 'cinematic' slowly circles. */
   cameraMode?: 'orbit' | 'cinematic'
 }
 
 /** The 3-D test rig: a model bridge across two stacks of books, a bucket or a toy truck for the load. */
-export function TestRigScene({ design, analysis, stateRef, loadKgRef, colorMode = 'forces', highlightId = null, cameraMode = 'cinematic' }: TestRigSceneProps) {
+export function TestRigScene({
+  design,
+  analysis,
+  stateRef,
+  loadKgRef,
+  colorMode = 'forces',
+  highlightId = null,
+  hoverId = null,
+  accent,
+  onSelectMember,
+  onHoverMember,
+  loadXRef,
+  dark = false,
+  cameraMode = 'cinematic',
+}: TestRigSceneProps) {
   const inView = useInView()
   return (
     <Canvas frameloop={inView ? 'always' : 'never'} shadows dpr={[1, 1.5]} camera={{ fov: 35, near: 0.02, far: 20, position: [0.45, 0.28, 0.65] }}>
-      <color attach="background" args={['#eef7ff']} />
-      <ambientLight intensity={0.8} />
+      <color attach="background" args={[dark ? '#0f141f' : '#eef7ff']} />
+      <ambientLight intensity={dark ? 0.7 : 0.8} />
       <directionalLight position={[1, 1.5, 1]} intensity={1.6} castShadow shadow-mapSize={[1024, 1024]} />
       <hemisphereLight args={['#ffffff', '#c9b79a', 0.4]} />
       {/* Text labels load a font asynchronously; keep that suspension inside the canvas so the page never resets. */}
       <Suspense fallback={null}>
         <Cliffs />
-        <Bridge3D design={design} analysis={analysis} stateRef={stateRef} colorMode={colorMode} highlightId={highlightId} />
+        <Bridge3D
+          design={design}
+          analysis={analysis}
+          stateRef={stateRef}
+          colorMode={colorMode}
+          highlightId={highlightId}
+          hoverId={hoverId}
+          accent={accent}
+          onSelectMember={onSelectMember}
+          onHoverMember={onHoverMember}
+        />
         {design.loadMode === 'center' ? (
-          <Bucket design={design} analysis={analysis} stateRef={stateRef} loadKgRef={loadKgRef} />
+          <Bucket design={design} analysis={analysis} stateRef={stateRef} loadKgRef={loadKgRef} loadXRef={loadXRef} dark={dark} />
         ) : (
-          <Truck design={design} analysis={analysis} stateRef={stateRef} loadKgRef={loadKgRef} />
+          <Truck design={design} analysis={analysis} stateRef={stateRef} loadKgRef={loadKgRef} loadXRef={loadXRef} dark={dark} />
         )}
         <Rig cameraMode={cameraMode} />
       </Suspense>
@@ -76,17 +109,19 @@ function loadPoint(design: BridgeDesign, analysis: BridgeAnalysis | null, load: 
 }
 
 /** A bucket hanging from the middle of the road by a string; it fills up as the load rises. */
-function Bucket({ design, analysis, stateRef, loadKgRef }: Pick<TestRigSceneProps, 'design' | 'analysis' | 'stateRef' | 'loadKgRef'>) {
+type LoadProps = Pick<TestRigSceneProps, 'design' | 'analysis' | 'stateRef' | 'loadKgRef' | 'loadXRef' | 'dark'>
+
+function Bucket({ design, analysis, stateRef, loadKgRef, loadXRef, dark }: LoadProps) {
   const group = useRef<Group>(null)
   const fill = useRef<Mesh>(null)
   const label = useRef<Group>(null)
   const string = useRef<Mesh>(null)
   const drop = useRef(0)
-  const xCm = SPAN_CM / 2
   const stringLen = 0.1
   useFrame((_, dt) => {
     const st = stateRef.current
     if (!st || !group.current) return
+    const xCm = loadXRef?.current ?? SPAN_CM / 2
     const [x, y] = loadPoint(design, analysis, st.load, st.sagScale, xCm)
     if (st.brokenId) drop.current = Math.min(drop.current + dt * 0.6, 0.14)
     else drop.current = 0
@@ -129,23 +164,24 @@ function Bucket({ design, analysis, stateRef, loadKgRef }: Pick<TestRigSceneProp
         </mesh>
       </group>
       <group ref={label}>
-        <LoadLabel loadKgRef={loadKgRef} fallback={kg} />
+        <LoadLabel loadKgRef={loadKgRef} fallback={kg} dark={dark} />
       </group>
     </>
   )
 }
 
-/** A toy truck parked at the worst spot on the road (or driving to it). */
-function Truck({ design, analysis, stateRef, loadKgRef }: Pick<TestRigSceneProps, 'design' | 'analysis' | 'stateRef' | 'loadKgRef'>) {
+/** A toy truck parked at the worst spot on the road (or driving to it); the Lab parks it where the load is. */
+function Truck({ design, analysis, stateRef, loadKgRef, loadXRef, dark }: LoadProps) {
   const group = useRef<Group>(null)
   const label = useRef<Group>(null)
-  const xRef = useRef(0)
+  const xRef = useRef<number | null>(null)
   const target = analysis?.worstLoadX ?? SPAN_CM / 2
   useFrame((_, dt) => {
     const st = stateRef.current
     if (!st || !group.current) return
-    // drive in from the left as the load builds, park at the worst spot
-    const want = st.load <= 0 ? -6 : target
+    // drive in from the left as the load builds, park at the worst spot (or wherever the Lab puts the load)
+    const want = loadXRef ? (loadXRef.current ?? target) : st.load <= 0 ? -6 : target
+    if (xRef.current === null) xRef.current = loadXRef ? want : 0
     xRef.current += (want - xRef.current) * Math.min(1, dt * 2.5)
     const [x, y] = loadPoint(design, analysis, st.load, st.sagScale, Math.max(0, Math.min(SPAN_CM, xRef.current)))
     const px = xRef.current < 0 ? xRef.current * CM : x
@@ -177,13 +213,13 @@ function Truck({ design, analysis, stateRef, loadKgRef }: Pick<TestRigSceneProps
         ))}
       </group>
       <group ref={label}>
-        <LoadLabel loadKgRef={loadKgRef} fallback={0} />
+        <LoadLabel loadKgRef={loadKgRef} fallback={0} dark={dark} />
       </group>
     </>
   )
 }
 
-function LoadLabel({ loadKgRef, fallback }: { loadKgRef: RefObject<number>; fallback: number }) {
+function LoadLabel({ loadKgRef, fallback, dark }: { loadKgRef: RefObject<number>; fallback: number; dark?: boolean }) {
   const ref = useRef<{ text: string } | null>(null)
   const lastUpdate = useRef(0)
   useFrame(({ clock }) => {
@@ -195,7 +231,7 @@ function LoadLabel({ loadKgRef, fallback }: { loadKgRef: RefObject<number>; fall
     if (ref.current && ref.current.text !== txt) ref.current.text = txt
   })
   return (
-    <Text ref={ref as never} fontSize={0.03} color="#1e2a4a" anchorX="center" anchorY="bottom" outlineWidth={0.002} outlineColor="#ffffff">
+    <Text ref={ref as never} fontSize={0.03} color={dark ? '#f5a623' : '#1e2a4a'} anchorX="center" anchorY="bottom" outlineWidth={0.002} outlineColor={dark ? '#0b0f17' : '#ffffff'}>
       {`${fallback.toFixed(1)} kg`}
     </Text>
   )

@@ -22,6 +22,21 @@ export const CELL = { height: 0, range: 1, landing: 2, lifted: 3, SIZE: 4 } as c
 
 export type MapRows = (Float32Array | null)[]
 
+/**
+ * A kind of parameter map: how to key, compute and summarise a grid of simulator results for one design
+ * type. The worker computes `rows` one at a time; `useParameterMap` caches them per `key`.
+ */
+export interface MapKind<D, P = null> {
+  /** Worker job name; also the cache namespace. */
+  name: string
+  key(design: D): string
+  rowCount: number
+  /** Rows in order, each a Float32Array of cells; a generator so the worker can post each as it is ready. */
+  rows(design: D): Iterable<Float32Array>
+  /** Summary computed once every row is in (null until then). */
+  presets(rows: MapRows): P | null
+}
+
 /** Everything that changes the map except the two axes (and cosmetics). */
 export function mapKey(d: RocketDesign): string {
   return JSON.stringify([
@@ -130,4 +145,15 @@ export function mapPresets(rows: MapRows): MapPreset[] | null {
     make('range', 'Max range', `longest flight at ≤ ${SAFETY.schoolMaxPsi} psi`, best.range),
     make('gentle', 'Gentle', `softest landing that still clears ${GENTLE_MIN_HEIGHT_M} m, at ≤ ${SAFETY.schoolMaxPsi} psi`, best.gentle),
   ].filter((p): p is MapPreset => p !== null)
+}
+
+/** The rocket's water × pressure map, shaded by height or distance. */
+export const ROCKET_MAP: MapKind<RocketDesign, MapPreset[]> = {
+  name: 'rocket',
+  key: mapKey,
+  rowCount: MAP_PRESSURES.length,
+  *rows(design) {
+    for (const p of MAP_PRESSURES) yield computeMapRow(design, p)
+  },
+  presets: mapPresets,
 }

@@ -31,6 +31,15 @@ export interface MapGuide {
   label: string
 }
 
+/** A curve drawn over the field in axis units, e.g. the boundary of a safe region. */
+export interface MapContour {
+  points: { x: number; y: number }[]
+  /** Written beside the curve's lowest point. */
+  label?: string
+  color?: string
+  dashed?: boolean
+}
+
 export interface ParameterMapProps {
   xAxis: MapAxis
   yAxis: MapAxis
@@ -55,6 +64,9 @@ export interface ParameterMapProps {
   hot?: boolean
   presets?: MapPreset[]
   guides?: MapGuide[]
+  contours?: MapContour[]
+  /** Legend caption for the top of the colour scale; defaults to the number. */
+  fieldMaxLabel?: string
   ariaLabel: string
   className?: string
 }
@@ -134,7 +146,7 @@ function thin(values: number[], n = 5): number[] {
 }
 
 function draw(ctx: CanvasRenderingContext2D, w: number, h: number, p: ParameterMapProps) {
-  const { xAxis, yAxis, cell, presets = [], guides = [], hot = false } = p
+  const { xAxis, yAxis, cell, presets = [], guides = [], contours = [], hot = false } = p
   const pw = w - PAD.l - PAD.r
   const ph = h - PAD.t - PAD.b
   if (pw < 20 || ph < 20) return
@@ -216,6 +228,38 @@ function draw(ctx: CanvasRenderingContext2D, w: number, h: number, p: ParameterM
   }
   ctx.setLineDash([])
 
+  // Contours, clipped to the field.
+  for (const c of contours) {
+    if (c.points.length < 2) continue
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(PAD.l, PAD.t, pw, ph)
+    ctx.clip()
+    ctx.strokeStyle = c.color ?? theme.text
+    ctx.lineWidth = 1.5
+    ctx.setLineDash(c.dashed ? [5, 4] : [])
+    ctx.beginPath()
+    c.points.forEach((q, i) => {
+      const xx = X(q.x)
+      const yy = Y(clampNum(q.y, yAxis.min - (yAxis.max - yAxis.min), yAxis.max + (yAxis.max - yAxis.min)))
+      if (i === 0) ctx.moveTo(xx, yy)
+      else ctx.lineTo(xx, yy)
+    })
+    ctx.stroke()
+    ctx.setLineDash([])
+    if (c.label) {
+      const low = c.points.reduce((a, b) => (b.y < a.y ? b : a))
+      const xx = X(low.x)
+      const yy = Y(clampNum(low.y, yAxis.min, yAxis.max))
+      ctx.fillStyle = c.color ?? theme.text
+      ctx.textBaseline = 'bottom'
+      const left = xx > PAD.l + pw * 0.6
+      ctx.textAlign = left ? 'right' : 'left'
+      ctx.fillText(c.label, xx + (left ? -6 : 6), yy - 4)
+    }
+    ctx.restore()
+  }
+
   // Axes.
   ctx.fillStyle = theme.muted
   ctx.textAlign = 'center'
@@ -246,7 +290,7 @@ function draw(ctx: CanvasRenderingContext2D, w: number, h: number, p: ParameterM
   ctx.fillStyle = theme.muted
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
-  ctx.fillText(`${Math.round(vmax)}${p.fieldUnit ? ` ${p.fieldUnit}` : ''}`, lx + 12, ly + 4)
+  ctx.fillText(p.fieldMaxLabel ?? `${Math.round(vmax)}${p.fieldUnit ? ` ${p.fieldUnit}` : ''}`, lx + 12, ly + 4)
   ctx.fillText('0', lx + 12, ly + lh - 4)
   ctx.save()
   ctx.translate(lx + 30, ly + lh / 2)

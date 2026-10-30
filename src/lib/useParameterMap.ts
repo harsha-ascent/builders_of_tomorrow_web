@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react'
-import type { RocketDesign } from '../../shared/types'
 import type { MapJob, MapMessage } from '../sim/paramMap.worker'
-import { MAP_PRESSURES, computeMapRow, mapKey, mapPresets, type MapPreset, type MapRows } from '../sim/paramMap'
+import type { MapKind, MapRows } from '../sim/paramMap'
 
-export interface ParameterMap {
+export interface ParameterMap<P = null> {
   key: string
   rows: MapRows
   /** 0 … 1 while the rows are still arriving. */
   progress: number
   done: boolean
-  presets: MapPreset[] | null
+  presets: P | null
 }
 
-interface Entry extends ParameterMap {
+interface Entry extends ParameterMap<unknown> {
+  rowCount: number
+  finish: () => void
   listeners: Set<() => void>
 }
 
@@ -34,10 +35,10 @@ function getWorker(): Worker | null {
         if (!entry) return
         if ('done' in e.data) {
           jobs.delete(e.data.id)
-          finish(entry)
+          entry.finish()
         } else {
           entry.rows[e.data.j] = e.data.row
-          entry.progress = entry.rows.filter(Boolean).length / MAP_PRESSURES.length
+          entry.progress = entry.rows.filter(Boolean).length / entry.rowCount
           notify(entry)
         }
       }
@@ -51,21 +52,28 @@ function getWorker(): Worker | null {
   return worker
 }
 
-function finish(entry: Entry) {
-  entry.done = true
-  entry.progress = 1
-  entry.presets = mapPresets(entry.rows)
-  notify(entry)
-}
-
 function notify(entry: Entry) {
   for (const l of entry.listeners) l()
 }
 
-function start(design: RocketDesign, key: string): Entry {
+function start<D, P>(design: D, kind: MapKind<D, P>, key: string): Entry {
   const existing = cache.get(key)
   if (existing) return existing
-  const entry: Entry = { key, rows: MAP_PRESSURES.map(() => null), progress: 0, done: false, presets: null, listeners: new Set() }
+  const entry: Entry = {
+    key,
+    rows: Array.from({ length: kind.rowCount }, () => null),
+    rowCount: kind.rowCount,
+    progress: 0,
+    done: false,
+    presets: null,
+    listeners: new Set(),
+    finish: () => {
+      entry.done = true
+      entry.progress = 1
+      entry.presets = kind.presets(entry.rows)
+      notify(entry)
+    },
+  }
   cache.set(key, entry)
   while (cache.size > MAX_CACHE) {
     const oldest = cache.keys().next().value
@@ -76,23 +84,25 @@ function start(design: RocketDesign, key: string): Entry {
   const id = nextJob++
   jobs.set(id, key)
   if (w) {
-    const job: MapJob = { id, design }
+    const job: MapJob = { id, kind: kind.name, design }
     w.postMessage(job)
   } else {
     // No workers (tests, very old browsers): compute a row per tick on the main thread.
+    const it = kind.rows(design)[Symbol.iterator]()
     let j = 0
     const tick = () => {
       if (!cache.has(key)) return
-      entry.rows[j] = computeMapRow(design, MAP_PRESSURES[j])
-      j++
-      entry.progress = j / MAP_PRESSURES.length
-      if (j < MAP_PRESSURES.length) {
-        notify(entry)
-        setTimeout(tick, 0)
-      } else {
+      const next = it.next()
+      if (next.done || j >= kind.rowCount) {
         jobs.delete(id)
-        finish(entry)
+        entry.finish()
+        return
       }
+      entry.rows[j] = next.value
+      j++
+      entry.progress = j / kind.rowCount
+      notify(entry)
+      setTimeout(tick, 0)
     }
     setTimeout(tick, 0)
   }
@@ -100,21 +110,21 @@ function start(design: RocketDesign, key: string): Entry {
 }
 
 /**
- * The parameter map for the current design, filling in progressively. Cached, so flipping between
- * designs is instant the second time; a short debounce keeps a drag on the angle dial from queueing
- * dozens of jobs.
+ * The parameter map of `kind` for the current design, filling in progressively. Cached, so flipping
+ * between designs is instant the second time; a short debounce keeps a drag on another control from
+ * queueing dozens of jobs.
  */
-export function useParameterMap(design: RocketDesign): ParameterMap {
-  const key = mapKey(design)
-  const [snapshot, setSnapshot] = useState<ParameterMap>(() => snapshotOf(cache.get(key) ?? start(design, key)))
+export function useParameterMap<D, P>(design: D, kind: MapKind<D, P>): ParameterMap<P> {
+  const key = `${kind.name}:${kind.key(design)}`
+  const [snapshot, setSnapshot] = useState<ParameterMap<P>>(() => snapshotOf<P>(cache.get(key) ?? start(design, kind, key)))
 
   useEffect(() => {
     let cancelled = false
     let unsub: (() => void) | null = null
     const subscribe = () => {
       if (cancelled) return
-      const entry = cache.get(key) ?? start(design, key)
-      const onChange = () => setSnapshot(snapshotOf(entry))
+      const entry = cache.get(key) ?? start(design, kind, key)
+      const onChange = () => setSnapshot(snapshotOf<P>(entry))
       entry.listeners.add(onChange)
       onChange()
       unsub = () => entry.listeners.delete(onChange)
@@ -128,13 +138,13 @@ export function useParameterMap(design: RocketDesign): ParameterMap {
       if (timer !== null) window.clearTimeout(timer)
       unsub?.()
     }
-    // `design` is only needed to start a job; the key captures every field the map depends on.
+    // `design` and `kind` are only needed to start a job; the key captures every field the map depends on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
   return snapshot
 }
 
-function snapshotOf(e: Entry): ParameterMap {
-  return { key: e.key, rows: e.rows.slice(), progress: e.progress, done: e.done, presets: e.presets }
+function snapshotOf<P>(e: Entry): ParameterMap<P> {
+  return { key: e.key, rows: e.rows.slice(), progress: e.progress, done: e.done, presets: e.presets as P | null }
 }

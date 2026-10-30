@@ -189,25 +189,73 @@ const EMPTY: BridgeAnalysis = {
   tooLongMembers: [],
 }
 
-export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
+// ---- Linear model -----------------------------------------------------------
+
+interface MemberLimits {
+  /** Tension limit (the glue joint), N. */
+  T: number
+  /** Compression limit (Euler buckling capped by crushing), N. */
+  C: number
+  /** True when buckling, not crushing, sets C. */
+  euler: boolean
+}
+
+/** How the bridge answers one newton of test load placed `x` cm along the deck. */
+export interface UnitResponse {
+  x: number
+  /** Force in each member per newton of load (N/N, + tension), in `BridgeModel.members` order. */
+  unitN: number[]
+  /** Joint displacements per newton of load (m), in dof order. */
+  uUnit: Float64Array
+  /** Test load (N) at which the first member fails; Infinity when the load sits right on a support. */
+  lambda: number
+  /** Index of that member in `members`, and how it fails. */
+  idx: number
+  mode: FailureMode
+}
+
+/**
+ * The assembled and factorised stiffness model of a bridge that passed every sanity check. The analysis
+ * is linear, so one factorisation answers any load at any position: `unitAt(x)` is one back-substitution.
+ */
+export interface BridgeModel {
+  ok: true
+  deck: BridgeNode[]
+  members: BridgeMember[]
+  lengthsM: number[]
+  limits: MemberLimits[]
+  /** Member forces (N, + tension) and joint displacements (m) from self-weight alone. */
+  selfN: number[]
+  uSelf: Float64Array
+  index: Map<string, number>
+  massG: number
+  costCoins: number
+  unitAt: (xLoadCm: number) => UnitResponse
+}
+
+export type BridgeModelResult = BridgeModel | { ok: false; analysis: BridgeAnalysis }
+
+/** Checks the design and assembles the model; `ok: false` carries the analysis that explains the problem. */
+export function buildBridgeModel(design: BridgeDesign): BridgeModelResult {
   const nodes = design.nodes
   const members = design.members.filter((m) => m.a !== m.b && nodes.some((n) => n.id === m.a) && nodes.some((n) => n.id === m.b))
   const massG = bridgeMassG({ nodes, members })
   const costCoins = bridgeCostCoins({ nodes, members })
   const base: BridgeAnalysis = { ...EMPTY, massG, costCoins }
+  const fail = (analysis: BridgeAnalysis): BridgeModelResult => ({ ok: false, analysis })
 
-  if (members.length === 0) return { ...base, problem: 'empty', message: 'Add some pieces! Start by connecting the two cliffs along the road.' }
+  if (members.length === 0) return fail({ ...base, problem: 'empty', message: 'Add some pieces! Start by connecting the two cliffs along the road.' })
 
   // Members longer than the material allows.
   const tooLongMembers = members.filter((m) => memberLengthCm(design, m) > MATERIALS[m.material].maxLengthCm + 1e-6).map((m) => m.id)
   if (tooLongMembers.length) {
     const m = members.find((x) => x.id === tooLongMembers[0])!
-    return {
+    return fail({
       ...base,
       problem: 'too-long',
       tooLongMembers,
       message: `A ${MATERIALS[m.material].name.toLowerCase()} can only be ${MATERIALS[m.material].maxLengthCm} cm long. Split the long piece with a joint in the middle.`,
-    }
+    })
   }
 
   // The road must run all the way across.
@@ -217,7 +265,7 @@ export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
     const b = deck[i + 1]
     const joined = members.some((m) => (m.a === a.id && m.b === b.id) || (m.a === b.id && m.b === a.id))
     if (!joined) {
-      return { ...base, problem: 'no-deck', message: `Your road has a gap between ${a.x} cm and ${b.x} cm. Cars would fall in!` }
+      return fail({ ...base, problem: 'no-deck', message: `Your road has a gap between ${a.x} cm and ${b.x} cm. Cars would fall in!` })
     }
   }
 
@@ -243,14 +291,14 @@ export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
   const used = [...adj.keys()]
   const floatingNodes = used.filter((id) => !seen.has(id))
   if (floatingNodes.length) {
-    return { ...base, problem: 'disconnected', floatingNodes, message: 'Some pieces are floating in mid-air. Connect every piece back to the bridge.' }
+    return fail({ ...base, problem: 'disconnected', floatingNodes, message: 'Some pieces are floating in mid-air. Connect every piece back to the bridge.' })
   }
 
   // A joint with only one member just swings: that is a mechanism.
   const dangling = used.filter((id) => !isSupport(id) && (adj.get(id)?.size ?? 0) < 2)
   if (dangling.length) {
     const n = nodes.find((x) => x.id === dangling[0])!
-    return { ...base, problem: 'dangling', floatingNodes: dangling, message: `The joint at (${n.x}, ${n.y}) has only one piece. Every joint needs at least two.` }
+    return fail({ ...base, problem: 'dangling', floatingNodes: dangling, message: `The joint at (${n.x}, ${n.y}) has only one piece. Every joint needs at least two.` })
   }
 
   // ---- Direct stiffness method -----------------------------------------
@@ -310,7 +358,7 @@ export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
 
   const lu = luDecompose(Kff, nf)
   if (!lu) {
-    return { ...base, problem: 'mechanism', message: 'Wobbly! Your bridge can fold up like a parallelogram. Add diagonal pieces to make triangles.' }
+    return fail({ ...base, problem: 'mechanism', message: 'Wobbly! Your bridge can fold up like a parallelogram. Add diagonal pieces to make triangles.' })
   }
 
   const solveFull = (f: Float64Array) => {
@@ -325,31 +373,28 @@ export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
     infos.map(({ c, s, k, ia, ib }) => k * ((u[2 * ib] - u[2 * ia]) * c + (u[2 * ib + 1] - u[2 * ia + 1]) * s))
 
   const uSelf = solveFull(fSelf)
-  const fSelfM = memberForces(uSelf)
+  const selfN = memberForces(uSelf)
 
-  const limits = infos.map(({ m, L }) => {
+  const limits: MemberLimits[] = infos.map(({ m, L }) => {
     const sec = memberSection(m)
     const C = compressionLimitN(sec.mat, L * 100, sec.layers)
     return { T: sec.tensionLimitN, C, euler: C < sec.crushLimitN - 1e-9 }
   })
 
-  // Candidate load positions along the deck.
-  const positions = design.loadMode === 'truck' ? truckPositions(deck) : [SPAN_CM / 2]
-
-  let best: { lambda: number; idx: number; mode: FailureMode; x: number; fUnit: number[]; uUnit: Float64Array } | null = null
-  for (const xLoad of positions) {
+  const unitAt = (xLoadCm: number): UnitResponse => {
     const fUnit = new Float64Array(dof)
-    distributeLoad(deck, xLoad, (nodeId, share) => {
-      fUnit[2 * index.get(nodeId)! + 1] -= share
+    distributeLoad(deck, xLoadCm, (nodeId, share) => {
+      const i = index.get(nodeId)
+      if (i !== undefined) fUnit[2 * i + 1] -= share
     })
     const uUnit = solveFull(fUnit)
-    const fUnitM = memberForces(uUnit)
+    const unitN = memberForces(uUnit)
     let lambda = Infinity
     let idx = -1
     let mode: FailureMode = 'tension'
     for (let i = 0; i < infos.length; i++) {
-      const f0 = fSelfM[i]
-      const f1 = fUnitM[i]
+      const f0 = selfN[i]
+      const f1 = unitN[i]
       const { T, C, euler } = limits[i]
       if (f0 > T || -f0 > C) {
         lambda = 0
@@ -372,32 +417,35 @@ export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
         mode = mi
       }
     }
-    if (!best || lambda < best.lambda) best = { lambda, idx, mode, x: xLoad, fUnit: fUnitM, uUnit }
-  }
-  if (!best || !Number.isFinite(best.lambda)) {
-    return { ...base, problem: 'mechanism', message: 'The load has nowhere to go. Check the road connects to the cliffs.' }
+    return { x: xLoadCm, unitN, uUnit, lambda, idx, mode }
   }
 
-  const lambda = best.lambda
-  const forces = infos.map((_, i) => fSelfM[i] + lambda * best!.fUnit[i])
-  const results: MemberResult[] = infos.map(({ m, L }, i) => {
-    const f = forces[i]
-    const lim = f >= 0 ? limits[i].T : limits[i].C
+  return { ok: true, deck, members, lengthsM: infos.map((i) => i.L), limits, selfN, uSelf, index, massG, costCoins, unitAt }
+}
+
+/** The full analysis for a load at `r.x`: forces, utilisation and displacements at the breaking load. */
+export function analysisAt(model: BridgeModel, r: UnitResponse): BridgeAnalysis {
+  const atSupport = !Number.isFinite(r.lambda)
+  const lambda = atSupport ? 0 : r.lambda
+  const results: MemberResult[] = model.members.map((m, i) => {
+    const f = model.selfN[i] + lambda * r.unitN[i]
+    const { T, C } = model.limits[i]
+    const lim = f >= 0 ? T : C
     return {
       id: m.id,
-      lengthCm: Math.round(L * 1000) / 10,
+      lengthCm: Math.round(model.lengthsM[i] * 1000) / 10,
       forceN: Math.round(f * 100) / 100,
-      tensionLimitN: Math.round(limits[i].T * 10) / 10,
-      compressionLimitN: Math.round(limits[i].C * 10) / 10,
+      tensionLimitN: Math.round(T * 10) / 10,
+      compressionLimitN: Math.round(C * 10) / 10,
       utilization: Math.min(1, Math.abs(f) / Math.max(lim, 1e-9)),
     }
   })
 
   const displacementsMm: Record<string, { dx: number; dy: number }> = {}
   let maxDeflectionMm = 0
-  for (const [id, i] of index) {
-    const dx = (uSelf[2 * i] + lambda * best.uUnit[2 * i]) * 1000
-    const dy = (uSelf[2 * i + 1] + lambda * best.uUnit[2 * i + 1]) * 1000
+  for (const [id, i] of model.index) {
+    const dx = (model.uSelf[2 * i] + lambda * r.uUnit[2 * i]) * 1000
+    const dy = (model.uSelf[2 * i + 1] + lambda * r.uUnit[2 * i + 1]) * 1000
     displacementsMm[id] = { dx: round(dx, 2), dy: round(dy, 2) }
     maxDeflectionMm = Math.max(maxDeflectionMm, Math.abs(dy))
   }
@@ -405,21 +453,137 @@ export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
   const capacityKg = lambda / G
   return {
     ok: true,
-    message: lambda === 0 ? 'It collapses under its own weight!' : `Holds about ${capacityKg.toFixed(1)} kg before the first piece fails.`,
-    capacityN: round(lambda, 2),
-    capacityKg: round(capacityKg, 2),
-    firstToBreak: infos[best.idx]?.m.id ?? null,
-    failureMode: best.mode,
-    worstLoadX: best.x,
+    message: atSupport
+      ? 'The load sits right over a support, so the bridge barely feels it.'
+      : lambda === 0
+        ? 'It collapses under its own weight!'
+        : `Holds about ${capacityKg.toFixed(1)} kg before the first piece fails.`,
+    capacityN: atSupport ? Infinity : round(lambda, 2),
+    capacityKg: atSupport ? Infinity : round(capacityKg, 2),
+    firstToBreak: atSupport ? null : (model.members[r.idx]?.id ?? null),
+    failureMode: atSupport ? null : r.mode,
+    worstLoadX: r.x,
     members: results,
     displacementsMm,
     maxDeflectionMm: round(maxDeflectionMm, 2),
-    massG: round(massG, 2),
-    costCoins: round(costCoins, 1),
-    efficiency: massG > 0 ? round(capacityKg / (massG / 1000), 0) : 0,
+    massG: round(model.massG, 2),
+    costCoins: round(model.costCoins, 1),
+    efficiency: model.massG > 0 && !atSupport ? round(capacityKg / (model.massG / 1000), 0) : 0,
     floatingNodes: [],
     tooLongMembers: [],
   }
+}
+
+export function analyzeBridge(design: BridgeDesign): BridgeAnalysis {
+  const model = buildBridgeModel(design)
+  if (!model.ok) return model.analysis
+
+  // Candidate load positions along the deck.
+  const positions = design.loadMode === 'truck' ? truckPositions(model.deck) : [SPAN_CM / 2]
+  let best: UnitResponse | null = null
+  for (const x of positions) {
+    const r = model.unitAt(x)
+    if (!best || r.lambda < best.lambda) best = r
+  }
+  if (!best || !Number.isFinite(best.lambda)) {
+    return { ...EMPTY, massG: model.massG, costCoins: model.costCoins, problem: 'mechanism', message: 'The load has nowhere to go. Check the road connects to the cliffs.' }
+  }
+  return analysisAt(model, best)
+}
+
+/** The analysis with the test load at one chosen spot along the deck (the Lab view's load position). */
+export function analyzeBridgeAt(design: BridgeDesign, xLoadCm: number): BridgeAnalysis {
+  const model = buildBridgeModel(design)
+  if (!model.ok) return model.analysis
+  return analysisAt(model, model.unitAt(xLoadCm))
+}
+
+// ---- Load response: what the Lab view's instruments read ----------------------------------
+
+/** Everything the linear model says about a load at one position, packaged for live readouts. */
+export interface LoadResponse {
+  x: number
+  ids: string[]
+  lengthsCm: number[]
+  /** Member force from self-weight (N, + tension) and per newton of test load (N/N). */
+  selfN: number[]
+  unitN: number[]
+  tensionLimitN: number[]
+  compressionLimitN: number[]
+  eulerLimited: boolean[]
+  /** Mid-span sag (mm, positive down) from self-weight, and per newton of test load. */
+  sagSelfMm: number
+  sagPerN: number
+  /** Breaking test load (N; Infinity on a support), the first member to fail and how. */
+  capacityN: number
+  firstToBreak: string | null
+  failureMode: FailureMode | null
+}
+
+export function responseAt(model: BridgeModel, r: UnitResponse): LoadResponse {
+  const mid = SPAN_CM / 2
+  const finite = Number.isFinite(r.lambda)
+  return {
+    x: r.x,
+    ids: model.members.map((m) => m.id),
+    lengthsCm: model.lengthsM.map((L) => Math.round(L * 1000) / 10),
+    selfN: model.selfN,
+    unitN: r.unitN,
+    tensionLimitN: model.limits.map((l) => l.T),
+    compressionLimitN: model.limits.map((l) => l.C),
+    eulerLimited: model.limits.map((l) => l.euler),
+    sagSelfMm: -deckDyAt(model, model.uSelf, mid) * 1000,
+    sagPerN: -deckDyAt(model, r.uUnit, mid) * 1000,
+    capacityN: r.lambda,
+    firstToBreak: finite ? (model.members[r.idx]?.id ?? null) : null,
+    failureMode: finite ? r.mode : null,
+  }
+}
+
+/** Vertical displacement (m, + up) of the road at `xCm`, interpolated between road joints. */
+function deckDyAt(model: BridgeModel, u: Float64Array, xCm: number): number {
+  const dy = (n: BridgeNode) => {
+    const i = model.index.get(n.id)
+    return i === undefined ? 0 : u[2 * i + 1]
+  }
+  const deck = model.deck
+  const exact = deck.find((n) => Math.abs(n.x - xCm) < 1e-6)
+  if (exact) return dy(exact)
+  for (let i = 0; i < deck.length - 1; i++) {
+    const a = deck[i]
+    const b = deck[i + 1]
+    if (xCm > a.x && xCm < b.x) {
+      const t = (xCm - a.x) / (b.x - a.x)
+      return dy(a) + (dy(b) - dy(a)) * t
+    }
+  }
+  return 0
+}
+
+/** Member forces and utilisation (|force| / limit; above 1 = broken) at a test load of `loadN` newtons. */
+export function forcesAt(resp: LoadResponse, loadN: number) {
+  const n = resp.ids.length
+  const forceN = new Array<number>(n)
+  const utilization = new Array<number>(n)
+  let worst = 0
+  let worstIdx = -1
+  for (let i = 0; i < n; i++) {
+    const f = resp.selfN[i] + loadN * resp.unitN[i]
+    forceN[i] = f
+    const lim = f >= 0 ? resp.tensionLimitN[i] : resp.compressionLimitN[i]
+    const u = Math.abs(f) / Math.max(lim, 1e-9)
+    utilization[i] = u
+    if (u > worst) {
+      worst = u
+      worstIdx = i
+    }
+  }
+  return { forceN, utilization, worst, worstIdx }
+}
+
+/** Mid-span sag (mm, positive down) at a test load of `loadN` newtons. */
+export function sagAt(resp: LoadResponse, loadN: number) {
+  return resp.sagSelfMm + loadN * resp.sagPerN
 }
 
 /** Where a truck's wheel might sit: every deck joint and the middle of every deck piece. */

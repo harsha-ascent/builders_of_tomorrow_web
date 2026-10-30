@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { BridgeTestRecord } from '../../../shared/types'
 import { AssumptionsPanel } from '../../components/AssumptionsPanel'
+import { LabViewSwitch, useLabView } from '../../components/lab'
 import { Page } from '../../components/layout/Page'
 import { Callout } from '../../components/ui/Callout'
 import { StatTile } from '../../components/ui/StatTile'
@@ -12,29 +13,59 @@ import { newDesignId } from '../../sim/presets'
 import { WORKSHOP_BRIDGE, useBridgeStore } from '../../store/bridgeStore'
 import type { RigState } from '../../three/bridge/Bridge3D'
 import { TestRigScene } from '../../three/bridge/TestRigScene'
+import { ADVICE, weightComparison } from './testCopy'
+
+const LabView = lazy(() => import('./lab/LabView'))
 
 type Phase = 'idle' | 'loading' | 'broken'
+const VIEW_KEY = 'bot:bridge-test-view'
 
-const ADVICE: Record<string, string> = {
-  buckling: 'It bowed sideways. Make that piece thicker (×2 or ×3 layers) or shorter by adding a joint in the middle.',
-  tension: 'The glue joint pulled apart. Add a second piece alongside it, or switch to a material with stronger joints.',
-  crush: 'It was crushed end-on. That is rare: try a stronger material.',
-  'self-weight': 'It cannot even hold itself up. Use fewer or lighter pieces, or a stronger material.',
-}
-
-function weightComparison(kg: number) {
-  if (kg < 0.5) return 'about a cup of water'
-  if (kg < 1.5) return 'about a bag of sugar'
-  if (kg < 3) return 'about a big bottle of cola'
-  if (kg < 6) return 'about a house cat'
-  if (kg < 12) return 'about a bicycle'
-  if (kg < 25) return 'about a full suitcase'
-  if (kg < 45) return 'about a ten-year-old'
-  if (kg < 80) return 'about a grown-up'
-  return 'more than a grown-up!'
-}
-
+/**
+ * Load Test page. The Lab view (linked instrument panels over one shared test state, mirrored into the
+ * URL hash) is the default; a small switch brings back the simple test rig for younger kids.
+ */
 export default function BridgeTestPage() {
+  const [view, choose] = useLabView(VIEW_KEY)
+  const toggle = <LabViewSwitch view={view} onChange={choose} label="Load Test page view" />
+
+  if (view === 'simple') {
+    return (
+      <>
+        <div className="mx-auto -mb-4 w-full max-w-7xl px-4 pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-ink-soft">Simple view: start the test and watch. Switch to the Lab to move the load, read every piece and see the equations.</p>
+            {toggle}
+          </div>
+        </div>
+        <SimpleTestView />
+      </>
+    )
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-soft">
+          Every panel is linked: drag the load or move it along the road in any of them and the others follow, then start the test. The link in your
+          address bar reproduces the setup. Younger builders can switch to Simple.
+        </p>
+        {toggle}
+      </div>
+      <Suspense
+        fallback={
+          <div className="lab flex min-h-[60vh] items-center justify-center" style={{ color: 'var(--lab-muted)' }}>
+            loading the lab…
+          </div>
+        }
+      >
+        <LabView />
+      </Suspense>
+    </div>
+  )
+}
+
+/** The original test rig: press Start, watch the bucket fill until something snaps. Unchanged for younger kids. */
+function SimpleTestView() {
   const design = useBridgeStore((s) => s.design)
   const analysis = useMemo(() => analyzeBridge(design), [design])
   const { records, addRecord, deleteRecord, clearAll } = useTestLog<BridgeTestRecord>(WORKSHOP_BRIDGE)

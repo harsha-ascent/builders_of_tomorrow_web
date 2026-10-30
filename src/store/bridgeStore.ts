@@ -76,3 +76,11 @@ export const useBridgeStore = create<BridgeState>()(
     },
   ),
 )
+
+// The starter bridge is only written to storage on the first change, so its id would differ on every
+// reload until then. Write it once, so links to the Load Test lab (which carry the design id) stay valid.
+try {
+  if (typeof window !== 'undefined' && window.localStorage.getItem('bot:bridge-workbench:v1') === null) useBridgeStore.setState({})
+} catch {
+  /* private mode */
+}

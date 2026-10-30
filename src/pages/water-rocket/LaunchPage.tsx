@@ -7,8 +7,7 @@ import { PressureZoneHint } from '../../components/PressureZoneHint'
 import { Callout } from '../../components/ui/Callout'
 import { Slider } from '../../components/ui/Slider'
 import { StatTile } from '../../components/ui/StatTile'
-import { clearHash } from '../../components/lab/useHashState'
-import { parseLabHash } from '../../lib/designHash'
+import { LabViewSwitch, useLabView } from '../../components/lab'
 import { fmt, heightComparison, speedComparison } from '../../lib/format'
 import { predict, runLaunch } from '../../lib/runSim'
 import { useLaunchLog } from '../../lib/useLaunchLog'
@@ -21,60 +20,15 @@ const TARGET_TOLERANCE_M = 3
 
 const LabView = lazy(() => import('./lab/LabView'))
 
-type LaunchView = 'simple' | 'lab'
 const VIEW_KEY = 'bot:launch-view'
-
-/** Lab is the default; a link with view=simple or a remembered choice opens the simple pad instead. */
-function initialView(): LaunchView {
-  if (typeof window === 'undefined') return 'lab'
-  const fromHash = parseLabHash(window.location.hash).view
-  if (fromHash) return fromHash
-  try {
-    if (window.localStorage.getItem(VIEW_KEY) === 'simple') return 'simple'
-  } catch {
-    /* private mode */
-  }
-  return 'lab'
-}
 
 /**
  * Launch page. The Lab view (linked instrument panels over one shared design, mirrored into the URL
  * hash) is the default; a small switch brings back the simple pad for younger kids.
  */
 export default function LaunchPage() {
-  const [view, setView] = useState<LaunchView>(initialView)
-
-  function choose(v: LaunchView) {
-    setView(v)
-    try {
-      window.localStorage.setItem(VIEW_KEY, v)
-    } catch {
-      /* private mode */
-    }
-    if (v === 'simple') clearHash()
-  }
-
-  const toggle = (
-    <div className="flex items-center gap-1 rounded-full bg-ink/5 p-0.5 text-xs ring-1 ring-ink/10" role="radiogroup" aria-label="Launch page view">
-      {(
-        [
-          { value: 'lab', label: '🔬 Lab' },
-          { value: 'simple', label: '🧒 Simple' },
-        ] as const
-      ).map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={view === o.value}
-          onClick={() => choose(o.value)}
-          className={`rounded-full px-3 py-1 font-display font-bold transition ${view === o.value ? 'bg-ink text-white shadow-chunky-sm' : 'text-ink hover:bg-white'}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
+  const [view, choose] = useLabView(VIEW_KEY)
+  const toggle = <LabViewSwitch view={view} onChange={choose} label="Launch page view" />
 
   if (view === 'simple') {
     return (
