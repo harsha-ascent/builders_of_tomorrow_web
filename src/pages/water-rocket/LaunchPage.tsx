@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import type { LaunchRecord, LaunchResult, TrajectorySample } from '../../../shared/types'
 import { Page } from '../../components/layout/Page'
@@ -7,6 +7,7 @@ import { PressureZoneHint } from '../../components/PressureZoneHint'
 import { Callout } from '../../components/ui/Callout'
 import { Slider } from '../../components/ui/Slider'
 import { StatTile } from '../../components/ui/StatTile'
+import { LabViewSwitch, useLabView } from '../../components/lab'
 import { fmt, heightComparison, speedComparison } from '../../lib/format'
 import { predict, runLaunch } from '../../lib/runSim'
 import { useLaunchLog } from '../../lib/useLaunchLog'
@@ -17,7 +18,56 @@ import { LaunchScene, type CameraMode } from '../../three/LaunchScene'
 
 const TARGET_TOLERANCE_M = 3
 
+const LabView = lazy(() => import('./lab/LabView'))
+
+const VIEW_KEY = 'bot:launch-view'
+
+/**
+ * Launch page. The Lab view (linked instrument panels over one shared design, mirrored into the URL
+ * hash) is the default; a small switch brings back the simple pad for younger kids.
+ */
 export default function LaunchPage() {
+  const [view, choose] = useLabView(VIEW_KEY)
+  const toggle = <LabViewSwitch view={view} onChange={choose} label="Launch page view" />
+
+  if (view === 'simple') {
+    return (
+      <>
+        <div className="mx-auto -mb-4 w-full max-w-7xl px-4 pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-ink-soft">Simple view: pump, launch, watch. Switch to the Lab for linked instruments, the settings map and the equations.</p>
+            {toggle}
+          </div>
+        </div>
+        <SimpleLaunchView />
+      </>
+    )
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-soft">
+          Every panel is linked: drag in any of them and the others follow, then pump and launch. The link in your address bar reproduces the setup. Younger
+          builders can switch to Simple.
+        </p>
+        {toggle}
+      </div>
+      <Suspense
+        fallback={
+          <div className="lab flex min-h-[60vh] items-center justify-center" style={{ color: 'var(--lab-muted)' }}>
+            loading the lab…
+          </div>
+        }
+      >
+        <LabView />
+      </Suspense>
+    </div>
+  )
+}
+
+/** The original launch pad: pump it up, count down, watch, log. Unchanged for younger kids. */
+function SimpleLaunchView() {
   const design = useDesignStore((s) => s.design)
   const update = useDesignStore((s) => s.update)
   const setLastResult = useDesignStore((s) => s.setLastResult)
